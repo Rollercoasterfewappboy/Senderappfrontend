@@ -15,7 +15,7 @@ export default defineConfig({
     proxy: {
       // Proxying API requests to the backend on Render
       '/api': {
-        target: 'http://localhost:5000',  // Updated production URL
+        target: 'https://senderappbackend.onrender.com',  // Updated production URL
         changeOrigin: true,
         secure: false,
         configure: (proxy, _options) => {
@@ -32,7 +32,7 @@ export default defineConfig({
       },
       // Proxying WebSocket connections for socket.io
       '/socket.io': {
-        target: 'http://localhost:5000',  // Updated production URL
+        target: 'https://senderappbackend.onrender.com',  // Updated production URL
         ws: true,
         changeOrigin: true,
       },

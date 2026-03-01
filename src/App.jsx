@@ -24,7 +24,7 @@ import toast from 'react-hot-toast'
 import AdBanner from './components/common/AdBanner'
 
 // Axios base config
-axios.defaults.baseURL = 'http://localhost:5000/api'
+axios.defaults.baseURL = 'https://senderappbackend.onrender.com/api'
 
 // Handle expired tokens globally
 axios.interceptors.response.use(
