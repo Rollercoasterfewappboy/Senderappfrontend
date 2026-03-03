@@ -1062,24 +1062,6 @@ console.log('[EmailCompose] About to build email payload:', {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // import { useState, useEffect, useRef } from 'react';
 // import ReactQuill from 'react-quill';
 // import 'react-quill/dist/quill.snow.css';
