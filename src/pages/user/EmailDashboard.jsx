@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import EmailCompose from './EmailCompose';
 import EmailSettings from './EmailSettings';
 
@@ -317,7 +318,6 @@ export default function EmailDashboard() {
     </div>
   );
 }
-
 
 
 
