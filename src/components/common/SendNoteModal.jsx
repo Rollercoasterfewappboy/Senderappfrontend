@@ -20,6 +20,8 @@ export default function SendNoteModal({ isOpen, onClose, note }) {
   // Call-to-action
   const [callToActionText, setCallToActionText] = useState('')
   const [callLink, setCallLink] = useState('')
+  // Reply-To
+  const [replyTo, setReplyTo] = useState('')
   // Placeholder modal
   const [showPlaceholderModal, setShowPlaceholderModal] = useState(false)
   const [activePlaceholderField, setActivePlaceholderField] = useState(null)
@@ -104,6 +106,12 @@ export default function SendNoteModal({ isOpen, onClose, note }) {
       return
     }
 
+    // Validate reply-to email format if provided
+    if (replyTo.trim() && !emailRegex.test(replyTo.trim())) {
+      setError('Invalid reply-to email format')
+      return
+    }
+
     // Validate email settings are configured
     if (!settings?.provider) {
       setError('Email settings not configured. Please configure email settings first.')
@@ -119,7 +127,8 @@ export default function SendNoteModal({ isOpen, onClose, note }) {
         fromName: fromName.trim(),
         fromEmail: fromEmail.trim(),
         callToActionText: callToActionText.trim() || null,
-        callLink: callLink.trim() || null
+        callLink: callLink.trim() || null,
+        replyTo: replyTo.trim() || null
       })
 
       // Show success message
@@ -146,6 +155,7 @@ export default function SendNoteModal({ isOpen, onClose, note }) {
       setFromEmail('')
       setCallToActionText('')
       setCallLink('')
+      setReplyTo('')
       setError('')
       onClose()
     } catch (err) {
@@ -270,6 +280,23 @@ export default function SendNoteModal({ isOpen, onClose, note }) {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
               disabled={loading}
             />
+          </div>
+
+          {/* Reply-To Email */}
+          <div>
+            <label htmlFor="replyTo" className="block text-sm font-medium text-gray-700 mb-2">
+              Reply-To Email <span className="text-gray-500 text-xs">(optional)</span>
+            </label>
+            <input
+              id="replyTo"
+              type="email"
+              value={replyTo}
+              onChange={(e) => setReplyTo(e.target.value)}
+              placeholder="replies@example.com"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+              disabled={loading}
+            />
+            <p className="text-xs text-gray-500 mt-1">Recipients will reply to this email address instead of the From address</p>
           </div>
 
           {/* Call-to-Action Section */}

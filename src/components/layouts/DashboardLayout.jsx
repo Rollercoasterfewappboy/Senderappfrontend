@@ -16,11 +16,13 @@ export default function DashboardLayout({ children, user, onLogout }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const location = useLocation()
 
-  const navigation = [
-    { name: 'Notepad', href: '/notepad', icon: FiFileText },
-    { name: 'Email', href: '/email', icon: FiMessageSquare },
-    { name: 'SMS', href: '/sms', icon: FiPhone },
-  ]
+  // Build navigation items dynamically; notepad only if enabled for this user
+  const navigation = []
+  if (user?.adminConfig?.notepadEnabled) {
+    navigation.push({ name: 'Notepad', href: '/notepad', icon: FiFileText })
+  }
+  navigation.push({ name: 'Email', href: '/email', icon: FiMessageSquare })
+  navigation.push({ name: 'SMS', href: '/sms', icon: FiPhone })
 
   const isActive = (href) => {
     return location.pathname === href

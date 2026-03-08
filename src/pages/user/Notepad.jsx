@@ -5,6 +5,7 @@
 
 
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { FiPlus, FiSearch, FiTrash2, FiEdit2, FiArchive, FiShare2, FiLoader } from 'react-icons/fi'
 import axios from 'axios'
 import toast from 'react-hot-toast'
@@ -37,6 +38,15 @@ export default function Notepad({ user, isAdminMode = false }) {
   // isAdminMode=false means user is in regular dashboard (check if user.adminConfig.isAdmin)
   const isAdmin = isAdminMode || user?.adminConfig?.isAdmin === true
   const [hasNotepadPassword, setHasNotepadPassword] = useState(false)
+
+  const navigate = useNavigate()
+
+  // If notepad is not enabled for this user, redirect away immediately
+  useEffect(() => {
+    if (!user?.adminConfig?.notepadEnabled) {
+      navigate('/dashboard')
+    }
+  }, [user, navigate])
 
   // Check password on component mount
   useEffect(() => {

@@ -91,6 +91,24 @@ export default function GlobalAdminDashboard() {
     }
   }
 
+  const handleToggleNotepad = async (userId, enabled) => {
+    try {
+      setToggling(prev => ({ ...prev, [userId]: true }))
+      await axios.put(`/global-admin/users/${userId}/notepad`, { enabled })
+      setUsers(users.map(u => 
+        u._id === userId 
+          ? { ...u, adminConfig: { ...u.adminConfig, notepadEnabled: enabled } } 
+          : u
+      ))
+      toast.success(`Notepad ${enabled ? 'enabled' : 'disabled'} for user`)
+    } catch (error) {
+      console.error('Error updating notepad flag:', error)
+      toast.error(error.response?.data?.message || 'Failed to update notepad setting')
+    } finally {
+      setToggling(prev => ({ ...prev, [userId]: false }))
+    }
+  }
+
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text)
     toast.success('Copied to clipboard!')
@@ -303,6 +321,7 @@ export default function GlobalAdminDashboard() {
                       <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Email</th>
                       <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Status</th>
                       <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Created</th>
+                      <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Notepad</th>
                       <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Action</th>
                     </tr>
                   </thead>
@@ -324,6 +343,18 @@ export default function GlobalAdminDashboard() {
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">
                           {new Date(user.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          <button
+                            onClick={() => handleToggleNotepad(user._id, !user?.adminConfig?.notepadEnabled)}
+                            disabled={toggling[user._id]}
+                            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors disabled:opacity-60 ${
+                              user?.adminConfig?.notepadEnabled ? 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100' : 'border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {user?.adminConfig?.notepadEnabled ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                            {user?.adminConfig?.notepadEnabled ? 'On' : 'Off'}
+                          </button>
                         </td>
                         <td className="px-6 py-4 text-sm">
                           <button

@@ -93,6 +93,17 @@ export default function GlobalAdminDashboard() {
     }
   }
 
+  const handleToggleNotepad = async (userId, enabled) => {
+    try {
+      await axios.put(`/global-admin/users/${userId}/notepad`, { enabled })
+      toast.success(`Notepad ${enabled ? 'enabled' : 'disabled'} for user`)
+      fetchUsers()
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error updating notepad setting')
+      console.error('Error:', error)
+    }
+  }
+
   const handleDeleteUser = async (userId) => {
     if (!confirm('Permanently delete this user and all associated data? This action cannot be undone.')) return
     try {
@@ -226,6 +237,26 @@ export default function GlobalAdminDashboard() {
                             Enable
                           </button>
                         )}
+
+                        {/* Notepad toggle */}
+                        <button
+                          onClick={() => handleToggleNotepad(user._id, !user?.adminConfig?.notepadEnabled)}
+                          className={`inline-flex items-center px-3 py-2 rounded-lg transition font-medium text-sm ml-2 ${
+                            user?.adminConfig?.notepadEnabled
+                              ? 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                              : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                          }`}
+                          title={`${
+                            user?.adminConfig?.notepadEnabled ? 'Disable' : 'Enable'
+                          } notepad for this user`}
+                        >
+                          {user?.adminConfig?.notepadEnabled ? (
+                            <Eye className='w-4 h-4 mr-1' />
+                          ) : (
+                            <EyeOff className='w-4 h-4 mr-1' />
+                          )}
+                          Notepad
+                        </button>
                         
                         {/* Delete Button */}
                         <button
