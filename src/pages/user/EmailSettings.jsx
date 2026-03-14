@@ -1,60 +1,84 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
-const DEFAULT_SETTINGS = {
-  provider: 'smtp',
-  smtpHost: '',
-  smtpPort: '',
-  smtpUser: '',
-  smtpPass: '',
-  smtpEncryption: 'ssl',
-  smtpRequireAuth: true, // ✅ NEW: Support unauthenticated SMTP
-  awsAccessKeyId: '',
-  awsSecretAccessKey: '',
-  awsRegion: '',
-  resendApiKey: '',
-  fromEmail: '',
+const DEFAULT_SMTP_CONFIG = {
+  name: '',
+  enabled: true,
+  host: '',
+  port: '',
+  username: '',
+  password: '',
+  encryption: 'ssl',
+  requireAuth: true,
 };
 
 export default function EmailSettings({ onSave, onCancel, initialSettings }) {
-  // Initialize form with a function to handle initialSettings at mount time
-  const [form, setForm] = useState(() => {
-    if (initialSettings) {
-      return { ...DEFAULT_SETTINGS, ...initialSettings };
-    }
-    return DEFAULT_SETTINGS;
+  const navigate = useNavigate();
+  const [form, setForm] = useState({
+    provider: 'smtp',
+    smtp: [],
+    aws: { username: '', password: '', region: '' },
+    resend: { apiKey: '' },
+    fromEmail: '',
   });
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false); // loading state for connection test
+  const [testing, setTesting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
-  // Sync form with initialSettings whenever it changes
+  // Sync form with initialSettings
   useEffect(() => {
-    if (initialSettings && Object.keys(initialSettings).length > 0) {
-      setForm((prev) => {
-        const updated = { ...DEFAULT_SETTINGS, ...initialSettings };
-        // Only update if there are actual changes to avoid unnecessary re-renders
-        return JSON.stringify(updated) !== JSON.stringify(prev) ? updated : prev;
-      });
+    if (initialSettings) {
+      setForm(prev => ({ ...prev, ...initialSettings }));
     }
   }, [initialSettings]);
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm((prev) => ({ 
-      ...prev, 
-      [name]: type === 'checkbox' ? checked : value 
+  const handleProviderChange = (e) => {
+    setForm(prev => ({ ...prev, provider: e.target.value }));
+  };
+
+  const handleSmtpChange = (index, field, value) => {
+    setForm(prev => {
+      const newSmtp = [...prev.smtp];
+      newSmtp[index] = { ...newSmtp[index], [field]: value };
+      return { ...prev, smtp: newSmtp };
+    });
+  };
+
+  const addSmtpConfig = () => {
+    setForm(prev => ({
+      ...prev,
+      smtp: [...prev.smtp, { ...DEFAULT_SMTP_CONFIG, name: `SMTP ${prev.smtp.length + 1}` }]
     }));
   };
 
-  const handleClearForm = () => {
-    if (window.confirm('Clear all Email Settings? This cannot be undone.')) {
-      setForm(DEFAULT_SETTINGS);
-      setSuccess(null);
-      setError(null);
+  const removeSmtpConfig = (index) => {
+    if (window.confirm('Remove this SMTP configuration?')) {
+      setForm(prev => ({
+        ...prev,
+        smtp: prev.smtp.filter((_, i) => i !== index)
+      }));
     }
+  };
+
+  const handleAwsChange = (field, value) => {
+    setForm(prev => ({
+      ...prev,
+      aws: { ...prev.aws, [field]: value }
+    }));
+  };
+
+  const handleResendChange = (field, value) => {
+    setForm(prev => ({
+      ...prev,
+      resend: { ...prev.resend, [field]: value }
+    }));
+  };
+
+  const handleFromEmailChange = (value) => {
+    setForm(prev => ({ ...prev, fromEmail: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -65,233 +89,213 @@ export default function EmailSettings({ onSave, onCancel, initialSettings }) {
     try {
       await onSave(form);
       setSuccess('Settings saved!');
-      // Do not reset form after save; keep values as is
     } catch (err) {
       const msg = err?.message || 'Failed to save settings.';
       setError(msg);
-      // also notify via toast
-      try { toast.error(msg); } catch (e) {}
+      toast.error(msg);
     }
     setSaving(false);
   };
 
-  // Explicit connection test without saving
   const handleTestConnection = async () => {
     setError(null);
     setSuccess(null);
     setTesting(true);
     try {
-      // reuse onSave's mapping logic by calling a lightweight endpoint
-      const provider = form.provider;
-      const smtp = provider === 'smtp' ? {
-        host: form.smtpHost,
-        port: form.smtpPort,
-        username: form.smtpUser,
-        password: form.smtpPass,
-        encryption: form.smtpEncryption || 'ssl',
-        requireAuth: form.smtpRequireAuth,
-      } : null;
-      const aws = provider === 'aws' ? {
-        username: form.awsAccessKeyId,
-        password: form.awsSecretAccessKey,
-        region: form.awsRegion,
-      } : null;
-      const resend = provider === 'resend' ? { apiKey: form.resendApiKey } : null;
-      await axios.post('/email/settings/test', { provider, smtp, aws, resend }, { timeout: 20000 });
-      setSuccess('Connection test succeeded');
+      const res = await axios.post('/email/settings/test', form, { timeout: 20000 });
+      if (res.data && res.data.success) {
+        setSuccess(res.data.message || 'Connected Successfully.');
+      } else {
+        setError(res.data?.message ? `Connection Failed: ${res.data.message}` : 'Connection Failed.');
+      }
     } catch (err) {
       const msg = err?.response?.data?.message || err.message || 'Connection test failed';
-      setError(`Test failed: ${msg}`);
+      setError(`Connection Failed: ${msg}`);
     } finally {
       setTesting(false);
     }
   };
 
   return (
-    <div className="bg-white p-6 rounded shadow">
+    <div className="bg-white p-6 rounded shadow max-w-4xl">
       <h2 className="text-xl font-bold mb-4">Email Settings</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <label className="block font-semibold mb-1">Provider</label>
           <select
-            name="provider"
             value={form.provider}
-            onChange={handleChange}
+            onChange={handleProviderChange}
             className="border p-2 w-full"
           >
-            <option value="smtp">SMTP</option>
+            <option value="smtp">SMTP (Multiple configs with rotation)</option>
             <option value="aws">AWS SMTP</option>
             <option value="resend">Resend API</option>
           </select>
         </div>
+
         {form.provider === 'smtp' && (
-          <>
-            <input
-              type="text"
-              name="smtpHost"
-              value={form.smtpHost}
-              onChange={handleChange}
-              className="border p-2 w-full"
-              placeholder="SMTP Host"
-              required
-            />
-            <input
-              type="number"
-              name="smtpPort"
-              value={form.smtpPort}
-              onChange={handleChange}
-              className="border p-2 w-full"
-              placeholder="SMTP Port (25, 465, 587, etc.)"
-              required
-            />
-            
-            {/* ✅ NEW: Encryption Dropdown */}
-            <div>
-              <label className="block font-semibold mb-1">Encryption</label>
-              <select
-                name="smtpEncryption"
-                value={form.smtpEncryption}
-                onChange={handleChange}
-                className="border p-2 w-full"
-              >
-                <option value="ssl">SSL (Port 465)</option>
-                <option value="tls">STARTTLS (Port 25, 587)</option>
-                <option value="none">None (Port 25)</option>
-              </select>
-              <p className="text-xs text-gray-600 mt-1">
-                • SSL: Encrypted connection from the start<br/>
-                • STARTTLS: Start encrypted after initial connect<br/>
-                • None: Direct unencrypted connection (IP-trusted only)
-              </p>
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">SMTP Configurations</h3>
+              <button type="button" onClick={addSmtpConfig} className="bg-blue-500 text-white px-3 py-1 rounded text-sm">
+                Add SMTP
+              </button>
             </div>
-
-            {/* ✅ NEW: Authentication Toggle */}
-            <div className="flex items-center gap-2 mt-2">
-              <input
-                type="checkbox"
-                id="smtpRequireAuth"
-                name="smtpRequireAuth"
-                checked={form.smtpRequireAuth}
-                onChange={handleChange}
-                className="h-4 w-4"
-              />
-              <label htmlFor="smtpRequireAuth" className="font-semibold">
-                Require SMTP Authentication
-              </label>
-            </div>
-            {!form.smtpRequireAuth && (
-              <p className="text-xs text-orange-600 bg-orange-50 p-2 rounded border border-orange-200">
-                ⚠️ Without authentication, connection will rely on IP trust. Ensure your server is configured for Port 25 direct relay.
-              </p>
+            {form.smtp.length === 0 ? (
+              <p className="text-gray-500">No SMTP configurations. Click "Add SMTP" to get started.</p>
+            ) : (
+              form.smtp.map((smtp, index) => (
+                <div key={index} className="border rounded p-4 mb-4 bg-gray-50">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold">{smtp.name || `SMTP ${index + 1}`}</h4>
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={smtp.enabled}
+                          onChange={(e) => handleSmtpChange(index, 'enabled', e.target.checked)}
+                        />
+                        Enabled
+                      </label>
+                      <button type="button" onClick={() => removeSmtpConfig(index)} className="text-red-500 text-sm">
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Name"
+                      value={smtp.name}
+                      onChange={(e) => handleSmtpChange(index, 'name', e.target.value)}
+                      className="border p-2"
+                      required
+                    />
+                    <input
+                      type="text"
+                      placeholder="Host"
+                      value={smtp.host}
+                      onChange={(e) => handleSmtpChange(index, 'host', e.target.value)}
+                      className="border p-2"
+                      required
+                    />
+                    <input
+                      type="number"
+                      placeholder="Port"
+                      value={smtp.port}
+                      onChange={(e) => handleSmtpChange(index, 'port', e.target.value)}
+                      className="border p-2"
+                      required
+                    />
+                    <select
+                      value={smtp.encryption}
+                      onChange={(e) => handleSmtpChange(index, 'encryption', e.target.value)}
+                      className="border p-2"
+                    >
+                      <option value="ssl">SSL</option>
+                      <option value="tls">TLS</option>
+                      <option value="none">None</option>
+                    </select>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id={`requireAuth-${index}`}
+                        checked={smtp.requireAuth}
+                        onChange={(e) => handleSmtpChange(index, 'requireAuth', e.target.checked)}
+                      />
+                      <label htmlFor={`requireAuth-${index}`} className="text-sm">Require Auth</label>
+                    </div>
+                    {smtp.requireAuth && (
+                      <>
+                        <input
+                          type="text"
+                          placeholder="Username"
+                          value={smtp.username}
+                          onChange={(e) => handleSmtpChange(index, 'username', e.target.value)}
+                          className="border p-2"
+                          required
+                        />
+                        <input
+                          type="password"
+                          placeholder="Password"
+                          value={smtp.password}
+                          onChange={(e) => handleSmtpChange(index, 'password', e.target.value)}
+                          className="border p-2"
+                          required
+                        />
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))
             )}
-
-            {/* Show username/password only if authentication is required */}
-            {form.smtpRequireAuth && (
-              <>
-                <input
-                  type="text"
-                  name="smtpUser"
-                  value={form.smtpUser}
-                  onChange={handleChange}
-                  className="border p-2 w-full"
-                  placeholder="SMTP Username"
-                  required
-                />
-                <input
-                  type="password"
-                  name="smtpPass"
-                  value={form.smtpPass}
-                  onChange={handleChange}
-                  className="border p-2 w-full"
-                  placeholder="SMTP Password"
-                  required
-                />
-              </>
-            )}
-          </>
+          </div>
         )}
+
         {form.provider === 'aws' && (
-          <>
+          <div className="space-y-3">
             <input
               type="text"
-              name="awsAccessKeyId"
-              value={form.awsAccessKeyId}
-              onChange={handleChange}
-              className="border p-2 w-full"
               placeholder="AWS Access Key ID"
+              value={form.aws.username}
+              onChange={(e) => handleAwsChange('username', e.target.value)}
+              className="border p-2 w-full"
               required
             />
             <input
               type="password"
-              name="awsSecretAccessKey"
-              value={form.awsSecretAccessKey}
-              onChange={handleChange}
-              className="border p-2 w-full"
               placeholder="AWS Secret Access Key"
+              value={form.aws.password}
+              onChange={(e) => handleAwsChange('password', e.target.value)}
+              className="border p-2 w-full"
               required
             />
             <input
               type="text"
-              name="awsRegion"
-              value={form.awsRegion}
-              onChange={handleChange}
-              className="border p-2 w-full"
               placeholder="AWS Region"
+              value={form.aws.region}
+              onChange={(e) => handleAwsChange('region', e.target.value)}
+              className="border p-2 w-full"
               required
             />
-          </>
+          </div>
         )}
+
         {form.provider === 'resend' && (
           <input
-            type="password"
-            name="resendApiKey"
-            value={form.resendApiKey}
-            onChange={handleChange}
-            className="border p-2 w-full"
+            type="text"
             placeholder="Resend API Key"
+            value={form.resend.apiKey}
+            onChange={(e) => handleResendChange('apiKey', e.target.value)}
+            className="border p-2 w-full"
             required
           />
         )}
+
         <input
           type="email"
-          name="fromEmail"
+          placeholder="From Email"
           value={form.fromEmail}
-          onChange={handleChange}
+          onChange={(e) => handleFromEmailChange(e.target.value)}
           className="border p-2 w-full"
-          placeholder="From Email Address"
           required
         />
+
         {error && <div className="text-red-600">{error}</div>}
         {success && <div className="text-green-600">{success}</div>}
-        <div className="flex gap-4 mt-4 flex-wrap">
-          <button
-            type="submit"
-            className="bg-black text-white px-4 py-2 rounded disabled:opacity-60"
-            disabled={saving}
-          >
-            {saving ? 'Saving...' : 'Save Settings'}
-          </button>
-          <button
-            type="button"
-            onClick={handleTestConnection}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-60"
-            disabled={testing || saving}
-          >
-            {testing ? 'Testing...' : 'Test Connection'}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-          >
+
+        <div className="flex gap-3">
+          <button type="button" onClick={() => navigate('/user/email-compose')} className="bg-gray-500 text-white px-4 py-2 rounded">
             Back to Compose
           </button>
-          <button
-            type="button"
-            onClick={handleClearForm}
-            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-          >
-            Clear Form
+          <button type="submit" disabled={saving} className="bg-black text-white px-4 py-2 rounded">
+            {saving ? 'Saving...' : 'Save Settings'}
+          </button>
+          <button type="button" onClick={handleTestConnection} disabled={testing} className="border px-4 py-2 rounded">
+            {testing ? 'Testing...' : 'Test Connection'}
+          </button>
+          <button type="button" onClick={onCancel} className="border px-4 py-2 rounded">
+            Cancel
           </button>
         </div>
       </form>

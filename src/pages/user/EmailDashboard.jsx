@@ -29,13 +29,23 @@ export default function EmailDashboard() {
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState(null);
   const [logs, setLogs] = useState([]);
+  const [smtpLogs, setSmtpLogs] = useState([]);
+  const [activeLogTab, setActiveLogTab] = useState('email'); // 'email' or 'smtp'
   const [loadingLogs, setLoadingLogs] = useState(true);
+  const [loadingSmtpLogs, setLoadingSmtpLogs] = useState(true);
   const [loadingSettings, setLoadingSettings] = useState(true);
 
   useEffect(() => {
     fetchSettings();
     fetchLogs();
+    fetchSmtpLogs();
   }, []);
+
+  useEffect(() => {
+    if (activeLogTab === 'smtp') {
+      fetchSmtpLogs();
+    }
+  }, [activeLogTab]);
 
   const fetchSettings = async () => {
     setLoadingSettings(true);
@@ -53,6 +63,15 @@ export default function EmailDashboard() {
       setLogs(res.data.logs || []);
     } catch {}
     setLoadingLogs(false);
+  };
+
+  const fetchSmtpLogs = async () => {
+    setLoadingSmtpLogs(true);
+    try {
+      const res = await axios.get('/email/smtp-logs');
+      setSmtpLogs(res.data.logs || []);
+    } catch {}
+    setLoadingSmtpLogs(false);
   };
 
   const handleSend = async (emailData) => {
@@ -153,6 +172,12 @@ export default function EmailDashboard() {
       const response = await axios.post('/email/send', formData);
       console.log('[Email Send] Response:', response.data);
       
+      // display delivery summary toast if available
+      if (response.data.summary) {
+        const { total, successful, failed } = response.data.summary;
+        toast.success(`Delivery report: ${successful}/${total} sent, ${failed} failed`);
+      }
+      
       // Ensure response includes `success` property
       if (typeof response.data.success === 'undefined') {
         console.warn('[EmailDashboard] Response missing success field:', response.data);
@@ -184,28 +209,10 @@ export default function EmailDashboard() {
 
   const handleSaveSettings = async (form) => {
     // Map frontend form to backend expected structure
-    let provider = form.provider;
-    let smtp = null, aws = null, resend = null;
-    if (provider === 'smtp') {
-      smtp = {
-        host: form.smtpHost,
-        port: form.smtpPort,
-        username: form.smtpUser,
-        password: form.smtpPass,
-        encryption: form.smtpEncryption || 'ssl',
-        requireAuth: form.smtpRequireAuth,
-      };
-    } else if (provider === 'aws') {
-      aws = {
-        username: form.awsAccessKeyId,
-        password: form.awsSecretAccessKey,
-        region: form.awsRegion,
-      };
-    } else if (provider === 'resend') {
-      resend = {
-        apiKey: form.resendApiKey,
-      };
-    }
+    const provider = form.provider;
+    const smtp = provider === 'smtp' ? form.smtp : null;
+    const aws = provider === 'aws' ? form.aws : null;
+    const resend = provider === 'resend' ? form.resend : null;
 
     console.log('[EmailDashboard] handleSaveSettings called, provider=', provider, { smtp, aws, resend });
 
@@ -214,11 +221,7 @@ export default function EmailDashboard() {
       const res = await axios.post('/email/settings', { provider, smtp, aws, resend, fromEmail: form.fromEmail }, { timeout: 20000 });
       console.log('[EmailDashboard] Save settings response:', res.data);
       // Optimistically update local settings so UI reflects new values immediately
-      setSettings({ provider, smtpHost: smtp?.host || '', smtpPort: smtp?.port || '',
-        smtpUser: smtp?.username || '', smtpPass: smtp?.password || '',
-        smtpEncryption: smtp?.encryption || 'ssl', smtpRequireAuth: smtp?.requireAuth !== false,
-        awsAccessKeyId: aws?.username || '', awsSecretAccessKey: aws?.password || '', awsRegion: aws?.region || '',
-        resendApiKey: resend?.apiKey || '', fromEmail: form.fromEmail || '' });
+      setSettings(res.data.settings);
       toast.success('Settings saved successfully');
     } catch (saveErr) {
       const msg = saveErr?.response?.data?.message || saveErr.message || 'Unknown save error';
@@ -239,6 +242,16 @@ export default function EmailDashboard() {
     fetchLogs();
   };
 
+  const handleClearSmtpLogs = async () => {
+    if (!window.confirm('Are you sure you want to clear all SMTP failover logs?')) return;
+    await axios.delete('/email/smtp-logs');
+    fetchSmtpLogs();
+  };
+
+  const setLogTab = (tab) => {
+    setActiveLogTab(tab);
+  };
+
   return (
     <div className="max-w-4xl mx-auto py-8">
       {showSettings ? (
@@ -257,43 +270,102 @@ export default function EmailDashboard() {
           
           <div className="mt-10">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Email Activity Log</h2>
-              <button onClick={handleClearLogs} className="bg-red-500 text-white px-3 py-1 rounded text-sm">Clear</button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLogTab('email')}
+                  className={`px-3 py-1 rounded text-sm font-semibold ${activeLogTab === 'email' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700'}`}
+                >
+                  Email Activity
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLogTab('smtp')}
+                  className={`px-3 py-1 rounded text-sm font-semibold ${activeLogTab === 'smtp' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700'}`}
+                >
+                  SMTP Failover
+                </button>
+              </div>
+              <button
+                onClick={activeLogTab === 'smtp' ? handleClearSmtpLogs : handleClearLogs}
+                className="bg-red-500 text-white px-3 py-1 rounded text-sm"
+              >
+                Clear
+              </button>
             </div>
             <div className="overflow-x-auto">
-              {loadingLogs ? (
-                <div>Loading logs...</div>
-              ) : (
-                <table className="min-w-full bg-white border">
-                  <thead>
-                    <tr>
-                      <th className="px-4 py-2 border">To</th>
-                      <th className="px-4 py-2 border">BCC</th>
-                      <th className="px-4 py-2 border">Subject</th>
-                      <th className="px-4 py-2 border">Date</th>
-                      <th className="px-4 py-2 border">Status</th>
-                      <th className="px-4 py-2 border">Error</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {logs.length === 0 ? (
+              {activeLogTab === 'email' ? (
+                loadingLogs ? (
+                  <div>Loading email logs...</div>
+                ) : (
+                  <table className="min-w-full bg-white border">
+                    <thead>
                       <tr>
-                        <td colSpan={6} className="text-center py-4 text-gray-500">No emails sent yet.</td>
+                        <th className="px-4 py-2 border">To</th>
+                        <th className="px-4 py-2 border">BCC</th>
+                        <th className="px-4 py-2 border">Subject</th>
+                        <th className="px-4 py-2 border">Date</th>
+                        <th className="px-4 py-2 border">SMTP</th>
+                        <th className="px-4 py-2 border">Status</th>
+                        <th className="px-4 py-2 border">Error</th>
                       </tr>
-                    ) : (
-                      logs.map((log, idx) => (
-                        <tr key={idx}>
-                          <td className="px-4 py-2 border">{(log.to || []).join(', ')}</td>
-                          <td className="px-4 py-2 border">{(log.bcc || []).join(', ')}</td>
-                          <td className="px-4 py-2 border">{log.subject}</td>
-                          <td className="px-4 py-2 border">{new Date(log.sentAt).toLocaleString()}</td>
-                          <td className={`px-4 py-2 border font-semibold ${log.status === 'Success' ? 'text-green-600' : 'text-red-600'}`}>{log.status}</td>
-                          <td className="px-4 py-2 border text-red-500">{log.error}</td>
+                    </thead>
+                    <tbody>
+                      {logs.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="text-center py-4 text-gray-500">No emails sent yet.</td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        logs.map((log, idx) => (
+                          <tr key={idx}>
+                            <td className="px-4 py-2 border">{(log.to || []).join(', ')}</td>
+                            <td className="px-4 py-2 border">{(log.bcc || []).join(', ')}</td>
+                            <td className="px-4 py-2 border">{log.subject}</td>
+                            <td className="px-4 py-2 border">{new Date(log.sentAt).toLocaleString()}</td>
+                            <td className="px-4 py-2 border">{log.smtpUsed || '—'}</td>
+                            <td className={`px-4 py-2 border font-semibold ${log.status === 'Success' ? 'text-green-600' : 'text-red-600'}`}>{log.status}</td>
+                            <td className="px-4 py-2 border text-red-500">{log.error}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                )
+              ) : (
+                loadingSmtpLogs ? (
+                  <div>Loading SMTP logs...</div>
+                ) : (
+                  <table className="min-w-full bg-white border">
+                    <thead>
+                      <tr>
+                        <th className="px-4 py-2 border">Date</th>
+                        <th className="px-4 py-2 border">Action</th>
+                        <th className="px-4 py-2 border">SMTP Config</th>
+                        <th className="px-4 py-2 border">Host</th>
+                        <th className="px-4 py-2 border">Recipients</th>
+                        <th className="px-4 py-2 border">Error</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {smtpLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-4 text-gray-500">No SMTP failover logs yet.</td>
+                        </tr>
+                      ) : (
+                        smtpLogs.map((log, idx) => (
+                          <tr key={idx}>
+                            <td className="px-4 py-2 border">{new Date(log.createdAt).toLocaleString()}</td>
+                            <td className="px-4 py-2 border">{log.action}</td>
+                            <td className="px-4 py-2 border">{log.smtpName || '—'}</td>
+                            <td className="px-4 py-2 border">{log.smtpHost ? `${log.smtpHost}:${log.smtpPort}` : '—'}</td>
+                            <td className="px-4 py-2 border">{log.recipientCount || 0}</td>
+                            <td className="px-4 py-2 border text-red-500">{log.error}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                )
               )}
             </div>
           </div>

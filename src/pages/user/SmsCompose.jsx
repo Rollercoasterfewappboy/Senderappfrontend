@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 export default function SmsCompose() {
   const [numbers, setNumbers] = useState('');
@@ -8,8 +9,16 @@ export default function SmsCompose() {
   const [status, setStatus] = useState(null);
   const [logs, setLogs] = useState([]);
   const [loadingLogs, setLoadingLogs] = useState(true);
+  // Delivery report returned from backend after an SMS send attempt
+  const [deliveryReport, setDeliveryReport] = useState(null);
 
   useEffect(() => { fetchLogs(); }, []);
+
+  // Clear delivery report when user edits fields
+  useEffect(() => {
+    setDeliveryReport(null);
+    setStatus(null);
+  }, [numbers, message]);
 
   const fetchLogs = async () => {
     setLoadingLogs(true);
@@ -29,6 +38,7 @@ export default function SmsCompose() {
   const handleSend = async () => {
     setSending(true);
     setStatus(null);
+    setDeliveryReport(null);
     try {
       if (!numbers.trim()) throw new Error('Please enter at least one phone number');
       if (!message.trim()) throw new Error('Message is required');
@@ -38,6 +48,12 @@ export default function SmsCompose() {
       const res = await axios.post('/sms/send', { numbers, message });
       if (!res.data.success) throw new Error(res.data.error || 'Failed to send SMS');
       setStatus({ success: true, results: res.data.results });
+      // Set delivery report if available
+      if (res.data.summary) {
+        setDeliveryReport(res.data.summary);
+        const { total, successful, failed } = res.data.summary;
+        toast.success(`Delivery report: ${successful}/${total} sent, ${failed} failed`);
+      }
       fetchLogs();
     } catch (err) {
       setStatus({ success: false, error: err.message });
@@ -71,6 +87,14 @@ export default function SmsCompose() {
       {status && (
         <div className={`mb-3 p-2 rounded ${status.success ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
           {status.success ? `Sent to ${status.results.length} recipients` : `Error: ${status.error}`}
+        </div>
+      )}
+      {deliveryReport && (
+        <div className="mt-4 p-4 border rounded-lg bg-gray-50">
+          <h3 className="text-lg font-semibold mb-2">SMS Sending Completed</h3>
+          <p className="text-sm">Total SMS Processed: <strong>{deliveryReport.total}</strong></p>
+          <p className="text-sm text-green-700">Successfully Sent: <strong>{deliveryReport.successful}</strong></p>
+          <p className="text-sm text-red-700">Failed: <strong>{deliveryReport.failed}</strong></p>
         </div>
       )}
       <div className="flex gap-2">

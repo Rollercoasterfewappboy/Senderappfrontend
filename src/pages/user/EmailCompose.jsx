@@ -105,6 +105,8 @@ export default function EmailCompose({ onSend, onOpenSettings, fromEmailDefault 
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  // Delivery report returned from backend after an email send attempt
+  const [deliveryReport, setDeliveryReport] = useState(null);
   const [attachmentPreviews, setAttachmentPreviews] = useState([]);
   // ✨ Attachment filenames can include placeholders like {RECIPIENT_EMAIL}, {RECIPIENT_NAME}, {CURRENT_DATE}
   // Examples: invoice_{RECIPIENT_EMAIL}.pdf | report_{CURRENT_DATE}_{RECIPIENT_NAME}.docx | statement_{RECIPIENT_DOMAIN}.pdf
@@ -202,6 +204,14 @@ export default function EmailCompose({ onSend, onOpenSettings, fromEmailDefault 
       setForm((prev) => ({ ...prev, fromEmail: fromEmailDefault }));
     }
   }, [fromEmailDefault]);
+
+  // Whenever user edits major fields we clear previous send feedback
+  useEffect(() => {
+    // note: intentionally shallow list of fields that impact recipients/content
+    setDeliveryReport(null);
+    setSuccess(null);
+    setError(null);
+  }, [form.to, form.bcc, form.subject, form.body, form.bodyPlainText, form.ctaText, form.ctaLink]);
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
@@ -350,6 +360,7 @@ export default function EmailCompose({ onSend, onOpenSettings, fromEmailDefault 
     setSending(true);
     setError(null);
     setSuccess(null);
+    setDeliveryReport(null);
     setShowPlaceholderConfirm(false);
     
     try {
@@ -489,6 +500,9 @@ console.log('[EmailCompose] About to build email payload:', {
       
       const result = await onSend(emailPayload);
       // `handleSend` now returns the raw response data from server, even on partial failure.
+      if (result && result.summary) {
+        setDeliveryReport(result.summary);
+      }
       if (result && result.success) {
         setSuccess('Email sent successfully!');
       } else if (result && result.error) {
@@ -997,6 +1011,14 @@ console.log('[EmailCompose] About to build email payload:', {
 
         {error && <div className="text-red-600">{error}</div>}
         {success && <div className="text-green-600">{success}</div>}
+        {deliveryReport && (
+          <div className="mt-4 p-4 border rounded-lg bg-gray-50">
+            <h3 className="text-lg font-semibold mb-2">Email Sending Completed</h3>
+            <p className="text-sm">Total Emails Processed: <strong>{deliveryReport.total}</strong></p>
+            <p className="text-sm text-green-700">Successfully Sent: <strong>{deliveryReport.successful}</strong></p>
+            <p className="text-sm text-red-700">Failed: <strong>{deliveryReport.failed}</strong></p>
+          </div>
+        )}
         
         {/* Placeholder Confirmation Dialog */}
         {showPlaceholderConfirm && (
