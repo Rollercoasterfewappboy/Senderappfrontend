@@ -119,6 +119,9 @@ export default function EmailSettings({ onSave, onCancel, initialSettings }) {
   return (
     <div className="bg-white p-6 rounded shadow max-w-4xl">
       <h2 className="text-xl font-bold mb-4">Email Settings</h2>
+      <div className="mb-4 p-3 rounded border border-yellow-300 bg-yellow-50 text-sm text-yellow-800">
+        Note: Sender access is restricted by authorized IP address. Your current IP must be approved by the global admin before sending emails.
+      </div>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <label className="block font-semibold mb-1">Provider</label>

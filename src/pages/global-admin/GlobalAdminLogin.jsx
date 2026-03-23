@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 
 export default function GlobalAdminLogin({ onLogin }) {
   const [formData, setFormData] = useState({
-    email: 'admin@marketbook.com',
+    email: 'admin@inboxguaranteed.com',
     password: '',
     resetCode: ''
   })
@@ -67,7 +67,7 @@ export default function GlobalAdminLogin({ onLogin }) {
               value={formData.email}
               onChange={handleChange}
               className="input-field pl-10"
-              placeholder="admin@marketbook.com"
+              placeholder="admin@inboxguaranteed.com"
             />
           </div>
         </div>

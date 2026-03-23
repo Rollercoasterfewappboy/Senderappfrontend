@@ -14,6 +14,7 @@ export default function GlobalAdminDashboard() {
   })
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedUser, setExpandedUser] = useState(null)
+  const [ipInputs, setIpInputs] = useState({})
 
   useEffect(() => {
     fetchUsers()
@@ -112,6 +113,43 @@ export default function GlobalAdminDashboard() {
       fetchUsers()
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error deleting user')
+      console.error('Error:', error)
+    }
+  }
+
+  const handleToggleUserDetails = (userId) => {
+    setExpandedUser(expandedUser === userId ? null : userId)
+  }
+
+  const handleIpInputChange = (userId, value) => {
+    setIpInputs((prev) => ({ ...prev, [userId]: value }))
+  }
+
+  const handleAddAuthorizedIp = async (userId) => {
+    const ip = (ipInputs[userId] || '').trim()
+    if (!ip) {
+      toast.error('Please enter an IP address')
+      return
+    }
+
+    try {
+      await axios.post(`/global-admin/users/${userId}/authorized-ips`, { ip })
+      toast.success('IP address added')
+      setIpInputs((prev) => ({ ...prev, [userId]: '' }))
+      fetchUsers()
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error adding authorized IP')
+      console.error('Error:', error)
+    }
+  }
+
+  const handleRemoveAuthorizedIp = async (userId, ip) => {
+    try {
+      await axios.delete(`/global-admin/users/${userId}/authorized-ips/${encodeURIComponent(ip)}`)
+      toast.success('IP address removed')
+      fetchUsers()
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error removing authorized IP')
       console.error('Error:', error)
     }
   }
@@ -272,7 +310,7 @@ export default function GlobalAdminDashboard() {
 
                     {/* Expanded Details */}
                     {expandedUser === user._id && (
-                      <div className='mt-4 pt-4 border-t border-gray-200 text-sm'>
+                      <div className='mt-4 pt-4 border-t border-gray-200 text-sm space-y-4'>
                         <div className='grid grid-cols-2 gap-4'>
                           <div>
                             <p className='text-gray-600'>Created</p>
@@ -285,13 +323,49 @@ export default function GlobalAdminDashboard() {
                             <p className='text-gray-900 font-mono text-xs'>{user._id}</p>
                           </div>
                         </div>
+
+                        <div>
+                          <p className='text-gray-600 mb-2'>Authorized IPs</p>
+                          <div className='space-y-2'>
+                            {(user.authorizedIps || []).length === 0 ? (
+                              <p className='text-gray-500'>No IP addresses authorized yet.</p>
+                            ) : (
+                              (user.authorizedIps || []).map((entry) => (
+                                <div key={entry.ip} className='flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2'>
+                                  <span className='font-mono text-xs text-gray-700'>{entry.ip}</span>
+                                  <button
+                                    onClick={() => handleRemoveAuthorizedIp(user._id, entry.ip)}
+                                    className='text-red-500 hover:text-red-700 text-xs'
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+
+                          <div className='mt-3 flex gap-2'>
+                            <input
+                              value={ipInputs[user._id] || ''}
+                              onChange={(e) => handleIpInputChange(user._id, e.target.value)}
+                              placeholder='Add IP (ex: 203.0.113.45)'
+                              className='flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500'
+                            />
+                            <button
+                              onClick={() => handleAddAuthorizedIp(user._id)}
+                              className='px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm'
+                            >
+                              Add
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
 
                   {/* Expand Button */}
                   <button
-                    onClick={() => setExpandedUser(expandedUser === user._id ? null : user._id)}
+                    onClick={() => handleToggleUserDetails(user._id)}
                     className='w-full px-4 py-2 border-t border-gray-200 text-gray-600 hover:bg-gray-50 transition flex items-center justify-center gap-1 text-sm'
                   >
                     <ChevronDown className={`w-4 h-4 transition ${expandedUser === user._id ? 'rotate-180' : ''}`} />
