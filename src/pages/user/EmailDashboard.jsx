@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { io } from 'socket.io-client';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import EmailCompose from './EmailCompose';
@@ -25,7 +26,7 @@ function safeConvertToArray(obj) {
   return [];
 }
 
-export default function EmailDashboard() {
+export default function EmailDashboard({ user }) {
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState(null);
   const [logs, setLogs] = useState([]);
@@ -34,6 +35,22 @@ export default function EmailDashboard() {
   const [loadingLogs, setLoadingLogs] = useState(true);
   const [loadingSmtpLogs, setLoadingSmtpLogs] = useState(true);
   const [loadingSettings, setLoadingSettings] = useState(true);
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [sendProgress, setSendProgress] = useState(null);
+  const [sendEvents, setSendEvents] = useState([]);
+  const [activeSessionId, setActiveSessionId] = useState(null);
+  const [liveSendInProgress, setLiveSendInProgress] = useState(false);
+  const [emailSearch, setEmailSearch] = useState('');
+  const [emailStatusFilter, setEmailStatusFilter] = useState('All');
+  const [emailFromDate, setEmailFromDate] = useState('');
+  const [emailToDate, setEmailToDate] = useState('');
+  const [emailPage, setEmailPage] = useState(1);
+  const [emailLimit, setEmailLimit] = useState(25);
+  const [emailTotal, setEmailTotal] = useState(0);
+  const [emailTotalPages, setEmailTotalPages] = useState(0);
+  const activeSessionIdRef = useRef(null);
+  const socketRef = useRef(null);
+  const hasLiveSocket = useRef(false);
 
   useEffect(() => {
     fetchSettings();
@@ -42,10 +59,103 @@ export default function EmailDashboard() {
   }, []);
 
   useEffect(() => {
+    const token = localStorage.getItem('token') || localStorage.getItem('globalAdminToken');
+    if (!token) return;
+
+    const socketBaseUrl = axios.defaults.baseURL
+      ? axios.defaults.baseURL.replace(/\/api\/?$/, '') || window.location.origin
+      : window.location.origin;
+
+    const socket = io(socketBaseUrl, {
+      path: '/socket.io',
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      autoConnect: true,
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      setSocketConnected(true);
+      hasLiveSocket.current = true;
+      if (user?.id || user?._id) {
+        socket.emit('join-room', user._id || user.id);
+      }
+    });
+
+    socket.on('disconnect', () => {
+      setSocketConnected(false);
+      hasLiveSocket.current = false;
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('[EmailDashboard] socket connect_error:', err);
+      setSocketConnected(false);
+      hasLiveSocket.current = false;
+    });
+
+    socket.on('email-send-progress', (payload) => {
+      if (!payload || !payload.sessionId) return;
+      const { total, successful, failed, pending, status, lastEmail, lastResult, lastError, timestamp } = payload;
+      const shouldTrackSend = activeSessionIdRef.current && payload.sessionId === activeSessionIdRef.current;
+      const formattedStatus = lastResult === 'sent' ? 'Success' : lastResult === 'failed' ? 'Failed' : 'Pending';
+
+      if (shouldTrackSend) {
+        setSendProgress({ total, successful, failed, pending, status, lastEmail, lastResult, lastError, timestamp });
+      }
+
+      if (lastEmail && activeLogTab === 'email' && emailPage === 1) {
+        setLogs((prev) => {
+          const newRecord = {
+            to: [lastEmail],
+            bcc: [],
+            subject: `(live email activity) ${lastResult || 'processing'}`,
+            sentAt: timestamp || new Date().toISOString(),
+            smtpUsed: 'live',
+            status: formattedStatus,
+            error: lastError || '',
+          };
+          const exists = prev.some((record) => record.to?.join(',') === lastEmail && new Date(record.sentAt).getTime() === new Date(newRecord.sentAt).getTime());
+          if (exists) return prev;
+          return [newRecord, ...prev].slice(0, emailLimit);
+        });
+      }
+
+      if (status === 'completed') {
+        setLiveSendInProgress(false);
+        setActiveSessionId(null);
+        activeSessionIdRef.current = null;
+        if (activeLogTab === 'email') {
+          fetchLogs();
+        }
+      } else {
+        if (shouldTrackSend) {
+          setLiveSendInProgress(true);
+        }
+      }
+    });
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      hasLiveSocket.current = false;
+      setSocketConnected(false);
+    };
+  }, [user]);
+
+  useEffect(() => {
     if (activeLogTab === 'smtp') {
       fetchSmtpLogs();
     }
   }, [activeLogTab]);
+
+  useEffect(() => {
+    if (activeLogTab === 'email') {
+      fetchLogs();
+    }
+  }, [activeLogTab, emailPage, emailLimit, emailStatusFilter, emailSearch, emailFromDate, emailToDate]);
 
   const fetchSettings = async () => {
     setLoadingSettings(true);
@@ -59,9 +169,25 @@ export default function EmailDashboard() {
   const fetchLogs = async () => {
     setLoadingLogs(true);
     try {
-      const res = await axios.get('/email/logs');
+      const res = await axios.get('/email/logs', {
+        params: {
+          page: emailPage,
+          limit: emailLimit,
+          status: emailStatusFilter,
+          search: emailSearch,
+          fromDate: emailFromDate,
+          toDate: emailToDate,
+        },
+      });
       setLogs(res.data.logs || []);
-    } catch {}
+      setEmailTotal(res.data.pagination?.total || 0);
+      setEmailTotalPages(res.data.pagination?.totalPages || 0);
+      if (res.data.pagination?.page) {
+        setEmailPage(res.data.pagination.page);
+      }
+    } catch (err) {
+      console.error('[EmailDashboard] Failed to load email logs', err);
+    }
     setLoadingLogs(false);
   };
 
@@ -75,6 +201,23 @@ export default function EmailDashboard() {
   };
 
   const handleSend = async (emailData) => {
+    const sessionId = emailData.sendSessionId || `send-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    setActiveSessionId(sessionId);
+    activeSessionIdRef.current = sessionId;
+    setLiveSendInProgress(true);
+    setSendProgress({
+      total: 0,
+      successful: 0,
+      failed: 0,
+      pending: 0,
+      status: 'starting',
+      lastEmail: null,
+      lastResult: null,
+      lastError: null,
+      timestamp: new Date().toISOString(),
+    });
+    setSendEvents([]);
+
     try {
       // CRITICAL: Log incoming emailData with complete attachment details
       console.log('[EmailDashboard] handleSend() ENTRY - emailData Details:', {
@@ -121,6 +264,8 @@ export default function EmailDashboard() {
       if (emailData.bodyImage) {
         formData.append('bodyImage', JSON.stringify(emailData.bodyImage));
       }
+
+      formData.append('sendSessionId', sessionId);
       
       // Safely handle attachments with comprehensive error handling
       let attachmentsArray = [];
@@ -155,6 +300,7 @@ export default function EmailDashboard() {
       }
       
       console.log('[Email Send] FormData contents - FULL DETAILS:', {
+        sessionId,
         to: formData.get('to'),
         bcc: formData.get('bcc'),
         subject: formData.get('subject'),
@@ -164,7 +310,7 @@ export default function EmailDashboard() {
         ctaText: formData.get('ctaText') || 'NOT PROVIDED',
         ctaLink: formData.get('ctaLink') || 'NOT PROVIDED',
         hasBodyImage: !!formData.get('bodyImage'),
-        attachmentFiles: attachmentsArray.map(f => ({ name: f.name, size: f.size }))
+        attachmentFiles: attachmentsArray.map(f => ({ name: f.name, size: f.size })),
       });
       
       // ✅ CRITICAL: When sending FormData, DO NOT set Content-Type header
@@ -202,8 +348,11 @@ export default function EmailDashboard() {
         // ignore stringify errors
       }
       console.error('[Email Send] Full Error Details - status:', status, 'data:', respData, 'message:', error?.message);
-      // Throw a readable Error so EmailCompose can display it
       throw new Error(readable);
+    } finally {
+      if (!hasLiveSocket.current) {
+        setLiveSendInProgress(false);
+      }
     }
   };
 
@@ -267,7 +416,71 @@ export default function EmailDashboard() {
             onOpenSettings={() => setShowSettings(true)}
             fromEmailDefault={settings?.fromEmail || ''}
           />
-          
+
+          {(sendProgress || liveSendInProgress) && (
+            <div className="mt-8 bg-white border border-gray-200 rounded-xl shadow-sm p-5">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Live send progress</h2>
+                  <p className="text-sm text-gray-500">Track your email batch in real time while send activity is ongoing.</p>
+                </div>
+                <div className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${socketConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                  {socketConnected ? 'Live socket connected' : 'Live updates unavailable'}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <div className="text-sm text-gray-500">Queued</div>
+                  <div className="text-2xl font-semibold text-gray-900">{sendProgress?.total ?? 0}</div>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <div className="text-sm text-gray-500">Sent</div>
+                  <div className="text-2xl font-semibold text-emerald-600">{sendProgress?.successful ?? 0}</div>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <div className="text-sm text-gray-500">Failed</div>
+                  <div className="text-2xl font-semibold text-rose-600">{sendProgress?.failed ?? 0}</div>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <div className="text-sm text-gray-500">Pending</div>
+                  <div className="text-2xl font-semibold text-gray-900">{sendProgress?.pending ?? 0}</div>
+                </div>
+              </div>
+
+              <div className="h-2 rounded-full bg-gray-200 overflow-hidden mb-4">
+                <div
+                  className="h-full bg-gradient-to-r from-sky-500 to-blue-600 transition-all duration-300"
+                  style={{ width: `${sendProgress?.total ? Math.round(((sendProgress?.successful ?? 0) + (sendProgress?.failed ?? 0)) / sendProgress.total * 100) : 0}%` }}
+                />
+              </div>
+
+              <div className="text-sm text-gray-600 mb-4">
+                Status: <span className="font-semibold text-gray-800">{sendProgress?.status || 'waiting'}</span>
+                {sendProgress?.lastEmail && (
+                  <span> — Last: <span className="font-medium">{sendProgress.lastEmail}</span> ({sendProgress.lastResult})</span>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                {sendEvents.length === 0 ? (
+                  <div className="text-sm text-gray-500">No live activity yet.</div>
+                ) : (
+                  sendEvents.slice().reverse().map((event, idx) => (
+                    <div key={idx} className="rounded-lg border border-gray-200 bg-white p-3">
+                      <div className="flex items-center justify-between text-sm text-gray-700">
+                        <span className="font-medium">{event.email}</span>
+                        <span className={event.status === 'sent' ? 'text-emerald-600' : 'text-rose-600'}>{event.status}</span>
+                      </div>
+                      <div className="text-xs text-gray-500">{event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : ''}</div>
+                      {event.error && <div className="text-xs text-red-500 mt-1">{event.error}</div>}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="mt-10">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -286,50 +499,182 @@ export default function EmailDashboard() {
                   SMTP Failover
                 </button>
               </div>
-              <button
-                onClick={activeLogTab === 'smtp' ? handleClearSmtpLogs : handleClearLogs}
-                className="bg-red-500 text-white px-3 py-1 rounded text-sm"
-              >
-                Clear
-              </button>
+              <div className="flex items-center gap-2">
+                {activeLogTab === 'email' && (
+                  <button
+                    type="button"
+                    onClick={fetchLogs}
+                    className="bg-sky-600 text-white px-3 py-1 rounded text-sm"
+                  >
+                    Refresh
+                  </button>
+                )}
+                <button
+                  onClick={activeLogTab === 'smtp' ? handleClearSmtpLogs : handleClearLogs}
+                  className="bg-red-500 text-white px-3 py-1 rounded text-sm"
+                >
+                  Clear
+                </button>
+              </div>
             </div>
+
+            {activeLogTab === 'email' && (
+              <div className="mb-4 space-y-3">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                    <input
+                      value={emailSearch}
+                      onChange={(e) => {
+                        setEmailSearch(e.target.value);
+                        setEmailPage(1);
+                      }}
+                      placeholder="Search subject, recipient, error"
+                      className="w-full rounded border border-gray-300 px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select
+                      value={emailStatusFilter}
+                      onChange={(e) => {
+                        setEmailStatusFilter(e.target.value);
+                        setEmailPage(1);
+                      }}
+                      className="w-full rounded border border-gray-300 px-3 py-2"
+                    >
+                      <option>All</option>
+                      <option>Success</option>
+                      <option>Failed</option>
+                      <option>Pending</option>
+                      <option>Processing</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
+                    <input
+                      type="date"
+                      value={emailFromDate}
+                      onChange={(e) => {
+                        setEmailFromDate(e.target.value);
+                        setEmailPage(1);
+                      }}
+                      className="w-full rounded border border-gray-300 px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+                    <input
+                      type="date"
+                      value={emailToDate}
+                      onChange={(e) => {
+                        setEmailToDate(e.target.value);
+                        setEmailPage(1);
+                      }}
+                      className="w-full rounded border border-gray-300 px-3 py-2"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div className="text-sm text-gray-600">
+                    Showing {logs.length} of {emailTotal} matching records
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <label className="text-sm font-medium text-gray-700">Rows per page</label>
+                    <select
+                      value={emailLimit}
+                      onChange={(e) => {
+                        setEmailLimit(parseInt(e.target.value, 10));
+                        setEmailPage(1);
+                      }}
+                      className="rounded border border-gray-300 px-3 py-2"
+                    >
+                      {[10, 25, 50, 100].map((size) => (
+                        <option key={size} value={size}>{size}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="overflow-x-auto">
               {activeLogTab === 'email' ? (
                 loadingLogs ? (
                   <div>Loading email logs...</div>
                 ) : (
-                  <table className="min-w-full bg-white border">
-                    <thead>
-                      <tr>
-                        <th className="px-4 py-2 border">To</th>
-                        <th className="px-4 py-2 border">BCC</th>
-                        <th className="px-4 py-2 border">Subject</th>
-                        <th className="px-4 py-2 border">Date</th>
-                        <th className="px-4 py-2 border">SMTP</th>
-                        <th className="px-4 py-2 border">Status</th>
-                        <th className="px-4 py-2 border">Error</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {logs.length === 0 ? (
+                  <>
+                    <table className="min-w-full bg-white border">
+                      <thead>
                         <tr>
-                          <td colSpan={7} className="text-center py-4 text-gray-500">No emails sent yet.</td>
+                          <th className="px-4 py-2 border">To</th>
+                          <th className="px-4 py-2 border">BCC</th>
+                          <th className="px-4 py-2 border">Subject</th>
+                          <th className="px-4 py-2 border">Date</th>
+                          <th className="px-4 py-2 border">SMTP</th>
+                          <th className="px-4 py-2 border">Status</th>
+                          <th className="px-4 py-2 border">Error</th>
                         </tr>
-                      ) : (
-                        logs.map((log, idx) => (
-                          <tr key={idx}>
-                            <td className="px-4 py-2 border">{(log.to || []).join(', ')}</td>
-                            <td className="px-4 py-2 border">{(log.bcc || []).join(', ')}</td>
-                            <td className="px-4 py-2 border">{log.subject}</td>
-                            <td className="px-4 py-2 border">{new Date(log.sentAt).toLocaleString()}</td>
-                            <td className="px-4 py-2 border">{log.smtpUsed || '—'}</td>
-                            <td className={`px-4 py-2 border font-semibold ${log.status === 'Success' ? 'text-green-600' : 'text-red-600'}`}>{log.status}</td>
-                            <td className="px-4 py-2 border text-red-500">{log.error}</td>
+                      </thead>
+                      <tbody>
+                        {logs.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="text-center py-4 text-gray-500">No emails sent yet.</td>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+                        ) : (
+                          logs.map((log, idx) => (
+                            <tr key={idx}>
+                              <td className="px-4 py-2 border">{(log.to || []).join(', ')}</td>
+                              <td className="px-4 py-2 border">{(log.bcc || []).join(', ')}</td>
+                              <td className="px-4 py-2 border">{log.subject}</td>
+                              <td className="px-4 py-2 border">{new Date(log.sentAt).toLocaleString()}</td>
+                              <td className="px-4 py-2 border">{log.smtpUsed || '—'}</td>
+                              <td className={`px-4 py-2 border font-semibold ${log.status === 'Success' ? 'text-green-600' : log.status === 'Failed' ? 'text-red-600' : 'text-amber-600'}`}>{log.status || 'Pending'}</td>
+                              <td className="px-4 py-2 border text-red-500">{log.error}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+
+                    {emailTotalPages > 1 && (
+                      <div className="mt-4 flex flex-col gap-3 items-start justify-between rounded-lg border border-gray-200 bg-white p-3 md:flex-row">
+                        <div className="text-sm text-gray-600">
+                          Page {emailPage} of {emailTotalPages}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            onClick={() => setEmailPage(Math.max(1, emailPage - 1))}
+                            disabled={emailPage === 1}
+                            className="rounded border border-gray-300 bg-white px-3 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Previous
+                          </button>
+                          {Array.from({ length: Math.min(7, emailTotalPages) }, (_, idx) => {
+                            const startPage = Math.max(1, Math.min(emailPage - 3, emailTotalPages - 6));
+                            const pageNumber = startPage + idx;
+                            return pageNumber <= emailTotalPages ? (
+                              <button
+                                key={pageNumber}
+                                onClick={() => setEmailPage(pageNumber)}
+                                className={`rounded border px-3 py-1 text-sm ${pageNumber === emailPage ? 'bg-black text-white' : 'bg-white text-gray-700'}`}
+                              >
+                                {pageNumber}
+                              </button>
+                            ) : null;
+                          })}
+                          <button
+                            onClick={() => setEmailPage(Math.min(emailTotalPages, emailPage + 1))}
+                            disabled={emailPage === emailTotalPages}
+                            className="rounded border border-gray-300 bg-white px-3 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )
               ) : (
                 loadingSmtpLogs ? (

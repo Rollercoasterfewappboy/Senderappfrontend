@@ -2,7 +2,7 @@ import { useState } from 'react';
 import SmsCompose from './SmsCompose';
 import SmsSettings from './SmsSettings';
 
-export default function SmsDashboard() {
+export default function SmsDashboard({ user }) {
   const [view, setView] = useState('compose'); // 'compose' or 'settings'
 
   return (
@@ -15,7 +15,7 @@ export default function SmsDashboard() {
         </div>
       </div>
 
-      {view === 'compose' ? <SmsCompose /> : <SmsSettings />}
+      {view === 'compose' ? <SmsCompose user={user} /> : <SmsSettings />}
     </div>
   )
 }

@@ -185,7 +185,7 @@ function App() {
                           element={
                             <ProtectedRoute user={user}>
                               <DashboardLayout user={user} onLogout={logout}>
-                                <EmailDashboard />
+                                <EmailDashboard user={user} />
                                 {!shouldHideAd && <AdBanner />}
                               </DashboardLayout>
                             </ProtectedRoute>
@@ -196,7 +196,7 @@ function App() {
                           element={
                             <ProtectedRoute user={user}>
                               <DashboardLayout user={user} onLogout={logout}>
-                                <SmsDashboard />
+                                <SmsDashboard user={user} />
                                 {!shouldHideAd && <AdBanner />}
                               </DashboardLayout>
                             </ProtectedRoute>
