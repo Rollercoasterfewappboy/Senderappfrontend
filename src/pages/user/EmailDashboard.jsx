@@ -348,7 +348,11 @@ export default function EmailDashboard({ user }) {
         // ignore stringify errors
       }
       console.error('[Email Send] Full Error Details - status:', status, 'data:', respData, 'message:', error?.message);
-      throw new Error(readable);
+      // Return server error payload when available so callers can handle partial failures
+      if (respData && typeof respData === 'object') {
+        return respData;
+      }
+      return { success: false, error: readable };
     } finally {
       if (!hasLiveSocket.current) {
         setLiveSendInProgress(false);

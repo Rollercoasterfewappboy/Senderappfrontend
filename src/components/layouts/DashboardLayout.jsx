@@ -93,7 +93,7 @@ export default function DashboardLayout({ children, user, onLogout }) {
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-gray-200 bg-white">
-            <div className="px-4 py-2 space-y-1">
+            <div className="px-4 py-2 space-y-1 max-h-[calc(100vh-5rem)] overflow-y-auto">
               {navigation.map((item) => {
                 const Icon = item.icon
                 return (
@@ -125,7 +125,7 @@ export default function DashboardLayout({ children, user, onLogout }) {
       {/* Click outside to close mobile menu */}
       {mobileMenuOpen && (
         <div 
-          className="fixed inset-0 z-30" 
+          className="fixed inset-0 z-30 bg-black/20" 
           onClick={() => {
             setMobileMenuOpen(false)
           }}

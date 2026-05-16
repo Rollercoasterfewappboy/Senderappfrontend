@@ -180,14 +180,16 @@ export default function GlobalAdminDashboard() {
       {/* Top Navigation */}
       <div className='bg-white shadow-sm border-b border-gray-200'>
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4'>
-          <div className='flex items-center justify-between'>
-            <div className='text-2xl font-bold text-gray-900'>
-              <div>inboxguaranteed</div>
-              <div>Global Administration Panel</div>
+          <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+            <div className='min-w-0'>
+              <div className='text-2xl font-bold text-gray-900'>
+                <div>inboxguaranteed</div>
+                <div className='text-sm text-gray-600'>Global Administration Panel</div>
+              </div>
             </div>
             <button
               onClick={() => setShowCreateUserModal(true)}
-              className='inline-flex items-center px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition'
+              className='inline-flex items-center justify-center px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition w-full sm:w-auto'
             >
               <UserPlus className='w-5 h-5 mr-2' />
               Create New User
@@ -228,24 +230,24 @@ export default function GlobalAdminDashboard() {
                   className='bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition'
                 >
                   <div className='p-4'>
-                    <div className='flex items-center justify-between'>
-                      <div className='flex-1'>
-                        <div className='flex items-center gap-3'>
-                          <div className='w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center'>
+                    <div className='flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between'>
+                      <div className='flex-1 min-w-0'>
+                        <div className='flex flex-col sm:flex-row sm:items-center gap-3'>
+                          <div className='w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0'>
                             <span className='text-blue-600 font-semibold text-sm'>
                               {user.firstName?.[0]}{user.lastName?.[0]}
                             </span>
                           </div>
-                          <div>
-                            <p className='font-semibold text-gray-900'>
+                          <div className='min-w-0'>
+                            <p className='font-semibold text-gray-900 truncate'>
                               {user.firstName} {user.lastName}
                             </p>
-                            <p className='text-sm text-gray-500'>{user.email}</p>
+                            <p className='text-sm text-gray-500 truncate'>{user.email}</p>
                           </div>
                         </div>
                       </div>
 
-                      <div className='flex items-center gap-2'>
+                      <div className='flex flex-wrap items-center gap-2'>
                         {/* Status Badge */}
                         <div className={`px-3 py-1 rounded-full text-sm font-medium ${
                           user.isActive
@@ -311,7 +313,7 @@ export default function GlobalAdminDashboard() {
                     {/* Expanded Details */}
                     {expandedUser === user._id && (
                       <div className='mt-4 pt-4 border-t border-gray-200 text-sm space-y-4'>
-                        <div className='grid grid-cols-2 gap-4'>
+                        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                           <div>
                             <p className='text-gray-600'>Created</p>
                             <p className='text-gray-900 font-medium'>
@@ -320,7 +322,7 @@ export default function GlobalAdminDashboard() {
                           </div>
                           <div>
                             <p className='text-gray-600'>User ID</p>
-                            <p className='text-gray-900 font-mono text-xs'>{user._id}</p>
+                            <p className='text-gray-900 font-mono text-xs break-all'>{user._id}</p>
                           </div>
                         </div>
 

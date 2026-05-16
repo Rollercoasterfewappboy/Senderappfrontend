@@ -74,6 +74,14 @@ iframe {
   .card {
     @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200;
   }
+
+  .table-responsive {
+    @apply w-full overflow-x-auto;
+  }
+
+  .modal-panel {
+    @apply bg-white rounded-xl shadow-2xl ring-1 ring-black/10;
+  }
 }
 
 .notification-slide {
