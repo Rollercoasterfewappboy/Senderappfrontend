@@ -111,14 +111,17 @@ export default function EmailDashboard({ user }) {
     socketRef.current = socket;
 
     socket.on('connect', () => {
+      console.log('[EmailDashboard] Socket CONNECTED', { socketId: socket.id, userId: user?._id || user?.id });
       setSocketConnected(true);
       hasLiveSocket.current = true;
       if (user?.id || user?._id) {
+        console.log('[EmailDashboard] Emitting join-room', { userId: user._id || user.id });
         socket.emit('join-room', user._id || user.id);
       }
     });
 
     socket.on('disconnect', () => {
+      console.log('[EmailDashboard] Socket DISCONNECTED');
       setSocketConnected(false);
       hasLiveSocket.current = false;
     });
@@ -130,9 +133,22 @@ export default function EmailDashboard({ user }) {
     });
 
     const handleEmailSendProgress = (payload) => {
-      console.debug('[EmailDashboard] received email-send-progress', payload);
-      if (!payload || !payload.sessionId) return;
-      if (!activeSessionIdRef.current || payload.sessionId !== activeSessionIdRef.current) return;
+      console.log('[EmailDashboard] RECEIVED email-send-progress EVENT', {
+        payloadSessionId: payload?.sessionId,
+        activeSessionId: activeSessionIdRef.current,
+        matched: payload?.sessionId === activeSessionIdRef.current,
+        successful: payload?.successful,
+        failed: payload?.failed,
+        lastEmail: payload?.lastEmail,
+      });
+      if (!payload || !payload.sessionId) {
+        console.log('[EmailDashboard] IGNORED: missing sessionId');
+        return;
+      }
+      if (!activeSessionIdRef.current || payload.sessionId !== activeSessionIdRef.current) {
+        console.log('[EmailDashboard] IGNORED: sessionId mismatch', { active: activeSessionIdRef.current, payload: payload.sessionId });
+        return;
+      }
 
       const { total, successful, failed, pending, status, lastEmail, lastResult, lastError, timestamp } = payload;
       const formattedStatus = lastResult === 'sent' ? 'Success' : lastResult === 'failed' ? 'Failed' : 'Pending';
@@ -202,10 +218,13 @@ export default function EmailDashboard({ user }) {
       }
     };
 
+    console.log('[EmailDashboard] Registering email-send-progress listener');
     socket.on('email-send-progress', handleEmailSendProgress);
 
     return () => {
+      console.log('[EmailDashboard] Cleaning up socket connection');
       if (socketRef.current) {
+        socketRef.current.off('email-send-progress', handleEmailSendProgress);
         socketRef.current.disconnect();
         socketRef.current = null;
       }
@@ -292,9 +311,11 @@ export default function EmailDashboard({ user }) {
 
   const handleSend = async (emailData) => {
     const sessionId = emailData.sendSessionId || `send-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    console.log('[EmailDashboard] handleSend START', { sessionId, socketConnected: socketRef.current?.connected });
     setLogTab('email');
     setActiveSessionId(sessionId);
     activeSessionIdRef.current = sessionId;
+    console.log('[EmailDashboard] Set activeSessionIdRef.current =', sessionId);
     setLiveSendInProgress(true);
     setSendProgress({
       sessionId,
@@ -311,12 +332,16 @@ export default function EmailDashboard({ user }) {
     setSendEvents([]);
 
     if (socketRef.current) {
+      console.log('[EmailDashboard] Waiting for socket connection...');
       const connected = await waitForSocketConnection(socketRef.current, 2500);
       hasLiveSocket.current = connected;
+      console.log('[EmailDashboard] Socket ready:', { connected, socketId: socketRef.current.id });
       if (connected && (user?.id || user?._id)) {
+        console.log('[EmailDashboard] Emitting join-room before send');
         socketRef.current.emit('join-room', user._id || user.id);
       }
-      console.debug('[EmailDashboard] socket live send readiness', { connected, hasLiveSocket: hasLiveSocket.current });
+    } else {
+      console.warn('[EmailDashboard] Socket not available for live updates');
     }
 
     try {
@@ -416,8 +441,13 @@ export default function EmailDashboard({ user }) {
       
       // ✅ CRITICAL: When sending FormData, DO NOT set Content-Type header
       // Let axios/browser automatically set it with the correct multipart/form-data boundary
+      console.log('[EmailDashboard] POST /email/send with sessionId:', sessionId);
       const response = await axios.post('/email/send', formData);
-      console.log('[Email Send] Response:', response.data);
+      console.log('[EmailDashboard] POST /email/send RESPONSE received', {
+        success: response.data.success,
+        summaryTotal: response.data.summary?.total,
+        summarySuccessful: response.data.summary?.successful,
+      });
       
       // display delivery summary toast if available
       if (response.data.summary) {
