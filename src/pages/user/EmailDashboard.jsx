@@ -87,6 +87,44 @@ export default function EmailDashboard({ user }) {
   const socketRef = useRef(null);
   const hasLiveSocket = useRef(false);
 
+  const normalizeRecipients = (recipients) => {
+    if (Array.isArray(recipients)) return recipients;
+    if (typeof recipients === 'string') {
+      return recipients.split(',').map((item) => item.trim()).filter(Boolean);
+    }
+    return [];
+  };
+
+  const mergeLiveActivityRecord = (prevLogs, payload) => {
+    const lastEmail = payload.lastEmail || '';
+    const normalizedTo = normalizeRecipients(payload.to || [lastEmail]);
+    const existingIndex = prevLogs.findIndex((record) => {
+      const recordTo = normalizeRecipients(record.to);
+      return recordTo.some((email) => email.toLowerCase() === lastEmail.toLowerCase());
+    });
+
+    const liveRecord = {
+      to: normalizedTo.length ? normalizedTo : [lastEmail],
+      bcc: normalizeRecipients(payload.bcc || []),
+      subject: payload.subject || `(live email activity) ${payload.lastResult || 'processing'}`,
+      sentAt: new Date(payload.timestamp || Date.now()).toISOString(),
+      smtpUsed: payload.smtpUsed || 'live',
+      status: payload.lastResult === 'sent' ? 'Success' : payload.lastResult === 'failed' ? 'Failed' : payload.status === 'completed' ? 'Success' : 'Processing',
+      error: payload.lastError || '',
+    };
+
+    if (existingIndex >= 0) {
+      const updated = [...prevLogs];
+      updated[existingIndex] = {
+        ...updated[existingIndex],
+        ...liveRecord,
+      };
+      return updated;
+    }
+
+    return [liveRecord, ...prevLogs].slice(0, emailLimitRef.current);
+  };
+
   useEffect(() => {
     fetchSettings();
     fetchLogs();
@@ -145,75 +183,46 @@ export default function EmailDashboard({ user }) {
         console.log('[EmailDashboard] IGNORED: missing sessionId');
         return;
       }
-      if (!activeSessionIdRef.current || payload.sessionId !== activeSessionIdRef.current) {
-        console.log('[EmailDashboard] IGNORED: sessionId mismatch', { active: activeSessionIdRef.current, payload: payload.sessionId });
-        return;
+      const isActiveSession = payload.sessionId === activeSessionIdRef.current;
+      if (!isActiveSession) {
+        console.log('[EmailDashboard] Non-active session activity received, updating feed if visible', {
+          active: activeSessionIdRef.current,
+          payload: payload.sessionId,
+        });
       }
 
-      const { total, successful, failed, pending, status, lastEmail, lastResult, lastError, timestamp } = payload;
-      const formattedStatus = lastResult === 'sent' ? 'Success' : lastResult === 'failed' ? 'Failed' : 'Pending';
+      const { total, successful, failed, pending, status, lastEmail, lastResult, lastError, timestamp, subject } = payload;
+      const formattedStatus = lastResult === 'sent' ? 'Success' : lastResult === 'failed' ? 'Failed' : status === 'completed' ? 'Success' : 'Processing';
       const effectiveTimestamp = timestamp || new Date().toISOString();
 
-      setSendProgress({ total, successful, failed, pending, status, lastEmail, lastResult, lastError, timestamp: effectiveTimestamp });
+      if (isActiveSession) {
+        setSendProgress({ total, successful, failed, pending, status, lastEmail, lastResult, lastError, timestamp: effectiveTimestamp });
 
-      if (lastEmail) {
-        const event = {
-          email: lastEmail,
-          status: lastResult || 'processing',
-          error: lastError || null,
-          timestamp: effectiveTimestamp,
-        };
-        setSendEvents((prev) => [event, ...prev].slice(0, 200));
+        if (lastEmail) {
+          const event = {
+            email: lastEmail,
+            status: lastResult || 'processing',
+            error: lastError || null,
+            timestamp: effectiveTimestamp,
+          };
+          setSendEvents((prev) => [event, ...prev].slice(0, 200));
+        }
       }
 
       if (lastEmail && activeLogTabRef.current === 'email' && emailPageRef.current === 1) {
-        let addedRecord = false;
-        setLogs((prev) => {
-          const existingIndex = prev.findIndex((record) => {
-            const recordTo = Array.isArray(record.to) ? record.to : [record.to];
-            return recordTo.some((email) => email === lastEmail);
-          });
-
-          const liveRecord = {
-            to: [lastEmail],
-            bcc: [],
-            subject: `(live email activity) ${lastResult || 'processing'}`,
-            sentAt: effectiveTimestamp,
-            smtpUsed: 'live',
-            status: formattedStatus,
-            error: lastError || '',
-          };
-
-          if (existingIndex >= 0) {
-            const updated = [...prev];
-            updated[existingIndex] = {
-              ...updated[existingIndex],
-              ...liveRecord,
-            };
-            return updated;
-          }
-
-          addedRecord = true;
-          return [liveRecord, ...prev].slice(0, emailLimitRef.current);
-        });
-
-        if (addedRecord) {
-          setEmailTotal((currentTotal) => {
-            const nextTotal = currentTotal + 1;
-            setEmailTotalPages(Math.ceil(nextTotal / emailLimitRef.current));
-            return nextTotal;
-          });
-        }
+        setLogs((prev) => mergeLiveActivityRecord(prev, { ...payload, subject, timestamp: effectiveTimestamp }));
       }
 
       if (status === 'completed') {
-        setLiveSendInProgress(false);
-        setActiveSessionId(null);
-        activeSessionIdRef.current = null;
-        if (activeLogTab === 'email') {
+        if (isActiveSession) {
+          setLiveSendInProgress(false);
+          setActiveSessionId(null);
+          activeSessionIdRef.current = null;
+        }
+        if (activeLogTabRef.current === 'email' && emailPageRef.current === 1) {
           fetchLogs();
         }
-      } else {
+      } else if (isActiveSession) {
         setLiveSendInProgress(true);
       }
     };
@@ -761,8 +770,8 @@ export default function EmailDashboard({ user }) {
                         ) : (
                           logs.map((log, idx) => (
                             <tr key={idx}>
-                              <td className="px-4 py-2 border">{(log.to || []).join(', ')}</td>
-                              <td className="px-4 py-2 border">{(log.bcc || []).join(', ')}</td>
+                              <td className="px-4 py-2 border">{normalizeRecipients(log.to).join(', ')}</td>
+                              <td className="px-4 py-2 border">{normalizeRecipients(log.bcc).join(', ')}</td>
                               <td className="px-4 py-2 border">{log.subject}</td>
                               <td className="px-4 py-2 border">{new Date(log.sentAt).toLocaleString()}</td>
                               <td className="px-4 py-2 border">{log.smtpUsed || '—'}</td>
