@@ -26,6 +26,38 @@ function safeConvertToArray(obj) {
   return [];
 }
 
+async function waitForSocketConnection(socket, timeoutMs = 2500) {
+  if (!socket) return false;
+  if (socket.connected) return true;
+
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      resolve(socket.connected);
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      socket.off('connect', onConnect);
+      socket.off('connect_error', onError);
+    };
+
+    const onConnect = () => {
+      cleanup();
+      resolve(true);
+    };
+
+    const onError = () => {
+      cleanup();
+      resolve(false);
+    };
+
+    socket.on('connect', onConnect);
+    socket.on('connect_error', onError);
+    socket.connect();
+  });
+}
+
 export default function EmailDashboard({ user }) {
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState(null);
@@ -94,14 +126,24 @@ export default function EmailDashboard({ user }) {
       hasLiveSocket.current = false;
     });
 
-    socket.on('email-send-progress', (payload) => {
+    const handleEmailSendProgress = (payload) => {
+      console.debug('[EmailDashboard] received email-send-progress', payload);
       if (!payload || !payload.sessionId) return;
+      if (!activeSessionIdRef.current || payload.sessionId !== activeSessionIdRef.current) return;
+
       const { total, successful, failed, pending, status, lastEmail, lastResult, lastError, timestamp } = payload;
-      const shouldTrackSend = activeSessionIdRef.current && payload.sessionId === activeSessionIdRef.current;
       const formattedStatus = lastResult === 'sent' ? 'Success' : lastResult === 'failed' ? 'Failed' : 'Pending';
 
-      if (shouldTrackSend) {
-        setSendProgress({ total, successful, failed, pending, status, lastEmail, lastResult, lastError, timestamp });
+      setSendProgress({ total, successful, failed, pending, status, lastEmail, lastResult, lastError, timestamp });
+
+      if (lastEmail) {
+        const event = {
+          email: lastEmail,
+          status: lastResult || 'processing',
+          error: lastError || null,
+          timestamp: timestamp || new Date().toISOString(),
+        };
+        setSendEvents((prev) => [event, ...prev].slice(0, 100));
       }
 
       if (lastEmail && activeLogTab === 'email' && emailPage === 1) {
@@ -129,11 +171,11 @@ export default function EmailDashboard({ user }) {
           fetchLogs();
         }
       } else {
-        if (shouldTrackSend) {
-          setLiveSendInProgress(true);
-        }
+        setLiveSendInProgress(true);
       }
-    });
+    };
+
+    socket.on('email-send-progress', handleEmailSendProgress);
 
     return () => {
       if (socketRef.current) {
@@ -206,6 +248,7 @@ export default function EmailDashboard({ user }) {
     activeSessionIdRef.current = sessionId;
     setLiveSendInProgress(true);
     setSendProgress({
+      sessionId,
       total: 0,
       successful: 0,
       failed: 0,
@@ -217,6 +260,15 @@ export default function EmailDashboard({ user }) {
       timestamp: new Date().toISOString(),
     });
     setSendEvents([]);
+
+    if (socketRef.current) {
+      const connected = await waitForSocketConnection(socketRef.current, 2500);
+      hasLiveSocket.current = connected;
+      if (connected && (user?.id || user?._id)) {
+        socketRef.current.emit('join-room', user._id || user.id);
+      }
+      console.debug('[EmailDashboard] socket live send readiness', { connected, hasLiveSocket: hasLiveSocket.current });
+    }
 
     try {
       // CRITICAL: Log incoming emailData with complete attachment details
