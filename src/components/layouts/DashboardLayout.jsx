@@ -9,8 +9,12 @@ import {
   FiBell,
   FiMenu,
   FiX,
-  FiFileText
+  FiFileText,
+  FiMinus,
+  FiSquare,
+  FiX as FiClose
 } from 'react-icons/fi'
+// Electron window controls removed (hosted web app)
 
 export default function DashboardLayout({ children, user, onLogout }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -33,9 +37,9 @@ export default function DashboardLayout({ children, user, onLogout }) {
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between py-4 md:h-16">
             {/* Logo */}
-            <div className="flex items-center">
+            <div className="flex items-center justify-between">
               <Link to="/email" className="flex items-center">
                 <h1 className="text-xl font-bold text-primary-600">
                   InboxGuaranteed
@@ -66,6 +70,8 @@ export default function DashboardLayout({ children, user, onLogout }) {
 
             {/* Right side */}
             <div className="flex items-center space-x-4">
+              {/* Electron window controls removed for hosted deployment */}
+
               {/* Logout Button */}
               <button
                 onClick={onLogout}
@@ -93,7 +99,7 @@ export default function DashboardLayout({ children, user, onLogout }) {
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-gray-200 bg-white">
-            <div className="px-4 py-2 space-y-1 max-h-[calc(100vh-5rem)] overflow-y-auto">
+            <div className="px-4 py-2 space-y-1">
               {navigation.map((item) => {
                 const Icon = item.icon
                 return (
@@ -125,7 +131,7 @@ export default function DashboardLayout({ children, user, onLogout }) {
       {/* Click outside to close mobile menu */}
       {mobileMenuOpen && (
         <div 
-          className="fixed inset-0 z-30 bg-black/20" 
+          className="fixed inset-0 z-30" 
           onClick={() => {
             setMobileMenuOpen(false)
           }}

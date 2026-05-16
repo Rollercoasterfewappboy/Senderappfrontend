@@ -15,6 +15,7 @@ export default function GlobalAdminDashboard() {
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedUser, setExpandedUser] = useState(null)
   const [ipInputs, setIpInputs] = useState({})
+  const [addingIp, setAddingIp] = useState({}) // Track loading state for IP add buttons
 
   useEffect(() => {
     fetchUsers()
@@ -132,6 +133,9 @@ export default function GlobalAdminDashboard() {
       return
     }
 
+    // Set loading state for this specific user
+    setAddingIp(prev => ({ ...prev, [userId]: true }))
+
     try {
       await axios.post(`/global-admin/users/${userId}/authorized-ips`, { ip })
       toast.success('IP address added')
@@ -140,6 +144,9 @@ export default function GlobalAdminDashboard() {
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error adding authorized IP')
       console.error('Error:', error)
+    } finally {
+      // Clear loading state
+      setAddingIp(prev => ({ ...prev, [userId]: false }))
     }
   }
 
@@ -181,15 +188,13 @@ export default function GlobalAdminDashboard() {
       <div className='bg-white shadow-sm border-b border-gray-200'>
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4'>
           <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
-            <div className='min-w-0'>
-              <div className='text-2xl font-bold text-gray-900'>
-                <div>inboxguaranteed</div>
-                <div className='text-sm text-gray-600'>Global Administration Panel</div>
-              </div>
+            <div>
+              <div className='text-2xl font-bold text-gray-900'>inboxguaranteed</div>
+              <div className='text-sm sm:text-base text-gray-600'>Global Administration Panel</div>
             </div>
             <button
               onClick={() => setShowCreateUserModal(true)}
-              className='inline-flex items-center justify-center px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition w-full sm:w-auto'
+              className='inline-flex items-center justify-center w-full sm:w-auto px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition'
             >
               <UserPlus className='w-5 h-5 mr-2' />
               Create New User
@@ -229,10 +234,10 @@ export default function GlobalAdminDashboard() {
                   key={user._id}
                   className='bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition'
                 >
-                  <div className='p-4'>
-                    <div className='flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between'>
+                  <div className='p-4 sm:p-6'>
+                    <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
                       <div className='flex-1 min-w-0'>
-                        <div className='flex flex-col sm:flex-row sm:items-center gap-3'>
+                        <div className='flex items-center gap-3'>
                           <div className='w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0'>
                             <span className='text-blue-600 font-semibold text-sm'>
                               {user.firstName?.[0]}{user.lastName?.[0]}
@@ -247,73 +252,75 @@ export default function GlobalAdminDashboard() {
                         </div>
                       </div>
 
-                      <div className='flex flex-wrap items-center gap-2'>
-                        {/* Status Badge */}
-                        <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          user.isActive
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {user.isActive ? 'Active' : 'Disabled'}
+                      <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+                        <div className='flex flex-wrap items-center gap-2'>
+                          {/* Status Badge */}
+                          <div className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap ${
+                            user.isActive
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {user.isActive ? 'Active' : 'Disabled'}
+                          </div>
                         </div>
 
-                        {/* Enable/Disable Button */}
-                        {user.isActive ? (
-                          <button
-                            onClick={() => handleDisableUser(user._id)}
-                            className='inline-flex items-center px-3 py-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition font-medium text-sm'
-                            title='Disable this user'
-                          >
-                            <ToggleRight className='w-4 h-4 mr-1' />
-                            Disable
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleEnableUser(user._id)}
-                            className='inline-flex items-center px-3 py-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition font-medium text-sm'
-                            title='Enable this user'
-                          >
-                            <ToggleLeft className='w-4 h-4 mr-1' />
-                            Enable
-                          </button>
-                        )}
-
-                        {/* Notepad toggle */}
-                        <button
-                          onClick={() => handleToggleNotepad(user._id, !user?.adminConfig?.notepadEnabled)}
-                          className={`inline-flex items-center px-3 py-2 rounded-lg transition font-medium text-sm ml-2 ${
-                            user?.adminConfig?.notepadEnabled
-                              ? 'bg-blue-50 text-blue-600 hover:bg-blue-100'
-                              : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                          }`}
-                          title={`${
-                            user?.adminConfig?.notepadEnabled ? 'Disable' : 'Enable'
-                          } notepad for this user`}
-                        >
-                          {user?.adminConfig?.notepadEnabled ? (
-                            <Eye className='w-4 h-4 mr-1' />
+                        {/* Action Buttons */}
+                        <div className='flex flex-wrap justify-end gap-2'>
+                          {user.isActive ? (
+                            <button
+                              onClick={() => handleDisableUser(user._id)}
+                              className='inline-flex items-center px-3 py-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition font-medium text-sm whitespace-nowrap'
+                              title='Disable this user'
+                            >
+                              <ToggleRight className='w-4 h-4 mr-1' />
+                              Disable
+                            </button>
                           ) : (
-                            <EyeOff className='w-4 h-4 mr-1' />
+                            <button
+                              onClick={() => handleEnableUser(user._id)}
+                              className='inline-flex items-center px-3 py-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition font-medium text-sm whitespace-nowrap'
+                              title='Enable this user'
+                            >
+                              <ToggleLeft className='w-4 h-4 mr-1' />
+                              Enable
+                            </button>
                           )}
-                          Notepad
-                        </button>
-                        
-                        {/* Delete Button */}
-                        <button
-                          onClick={() => handleDeleteUser(user._id)}
-                          className='inline-flex items-center px-3 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition font-medium text-sm ml-2'
-                          title='Permanently delete this user'
-                        >
-                          <Trash2 className='w-4 h-4 mr-1' />
-                          Delete
-                        </button>
+
+                          <button
+                            onClick={() => handleToggleNotepad(user._id, !user?.adminConfig?.notepadEnabled)}
+                            className={`inline-flex items-center px-3 py-2 rounded-lg transition font-medium text-sm whitespace-nowrap ${
+                              user?.adminConfig?.notepadEnabled
+                                ? 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                            }`}
+                            title={`${
+                              user?.adminConfig?.notepadEnabled ? 'Disable' : 'Enable'
+                            } notepad for this user`}
+                          >
+                            {user?.adminConfig?.notepadEnabled ? (
+                              <Eye className='w-4 h-4 mr-1' />
+                            ) : (
+                              <EyeOff className='w-4 h-4 mr-1' />
+                            )}
+                            Notepad
+                          </button>
+                          
+                          <button
+                            onClick={() => handleDeleteUser(user._id)}
+                            className='inline-flex items-center px-3 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition font-medium text-sm whitespace-nowrap'
+                            title='Permanently delete this user'
+                          >
+                            <Trash2 className='w-4 h-4 mr-1' />
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     </div>
 
                     {/* Expanded Details */}
                     {expandedUser === user._id && (
                       <div className='mt-4 pt-4 border-t border-gray-200 text-sm space-y-4'>
-                        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                        <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
                           <div>
                             <p className='text-gray-600'>Created</p>
                             <p className='text-gray-900 font-medium'>
@@ -332,32 +339,43 @@ export default function GlobalAdminDashboard() {
                             {(user.authorizedIps || []).length === 0 ? (
                               <p className='text-gray-500'>No IP addresses authorized yet.</p>
                             ) : (
-                              (user.authorizedIps || []).map((entry) => (
-                                <div key={entry.ip} className='flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2'>
-                                  <span className='font-mono text-xs text-gray-700'>{entry.ip}</span>
-                                  <button
-                                    onClick={() => handleRemoveAuthorizedIp(user._id, entry.ip)}
-                                    className='text-red-500 hover:text-red-700 text-xs'
-                                  >
-                                    Remove
-                                  </button>
-                                </div>
-                              ))
+                              <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2'>
+                                {(user.authorizedIps || []).map((ipObj) => (
+                                  <div key={ipObj._id} className='flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2'>
+                                    <span className='font-mono text-xs text-gray-700 break-all'>{ipObj.ip}</span>
+                                    <button
+                                      onClick={() => handleRemoveAuthorizedIp(user._id, ipObj.ip)}
+                                      className='text-red-500 hover:text-red-700 text-xs ml-2 flex-shrink-0'
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
                             )}
                           </div>
 
-                          <div className='mt-3 flex gap-2'>
+                          <div className='mt-3 flex flex-col sm:flex-row gap-2'>
                             <input
                               value={ipInputs[user._id] || ''}
                               onChange={(e) => handleIpInputChange(user._id, e.target.value)}
                               placeholder='Add IP (ex: 203.0.113.45)'
-                              className='flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500'
+                              className='flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm'
                             />
                             <button
                               onClick={() => handleAddAuthorizedIp(user._id)}
-                              className='px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm'
+                              disabled={addingIp[user._id]}
+                              className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2 min-w-[80px] sm:min-w-[100px]"
                             >
-                              Add
+                              {addingIp[user._id] ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                  <span className="hidden sm:inline">Adding...</span>
+                                  <span className="sm:hidden">...</span>
+                                </>
+                              ) : (
+                                'Add'
+                              )}
                             </button>
                           </div>
                         </div>
@@ -431,17 +449,17 @@ export default function GlobalAdminDashboard() {
                 <p>The generated credentials will be displayed and copied to clipboard after creation.</p>
               </div>
 
-              <div className='flex gap-3 pt-4'>
+              <div className='flex flex-col gap-3 pt-4 sm:flex-row'>
                 <button
                   type='button'
                   onClick={() => setShowCreateUserModal(false)}
-                  className='flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition'
+                  className='w-full sm:w-auto px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition'
                 >
                   Cancel
                 </button>
                 <button
                   type='submit'
-                  className='flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2'
+                  className='w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2'
                 >
                   <UserPlus className='w-4 h-4' />
                   Create User

@@ -3,6 +3,7 @@ import { FiX, FiMail, FiAlertCircle, FiLoader, FiSettings } from 'react-icons/fi
 import axios from 'axios'
 import toast from 'react-hot-toast'
 import PlaceholderInsertModal from './PlaceholderInsertModal'
+import { getPublicIP } from '../../utils/ipHelper'
 
 export default function SendNoteModal({ isOpen, onClose, note }) {
   const [recipients, setRecipients] = useState('')
@@ -121,6 +122,18 @@ export default function SendNoteModal({ isOpen, onClose, note }) {
 
     try {
       setLoading(true)
+      
+      // Fetch user's public IP for validation
+      let clientPublicIP
+      try {
+        clientPublicIP = await getPublicIP()
+      } catch (ipError) {
+        console.error('Failed to fetch public IP:', ipError)
+        setError('Unable to verify your IP address. Please check your internet connection and try again.')
+        setLoading(false)
+        return
+      }
+
       const response = await axios.post(`/notes/${note._id}/send`, {
         recipientEmails: emailList,
         customMessage: customMessage.trim() || null,
@@ -129,6 +142,10 @@ export default function SendNoteModal({ isOpen, onClose, note }) {
         callToActionText: callToActionText.trim() || null,
         callLink: callLink.trim() || null,
         replyTo: replyTo.trim() || null
+      }, {
+        headers: {
+          'x-user-public-ip': clientPublicIP  // Backend expects this header for IP validation
+        }
       })
 
       // Show success message

@@ -33,9 +33,9 @@ export default function SmsSettings() {
   if (loading) return <div>Loading SMS settings...</div>;
 
   return (
-    <div className="bg-white p-6 rounded shadow mt-4">
+    <div className="bg-white p-6 rounded shadow mt-4 w-full">
       <h3 className="text-lg font-bold mb-3">SMS Settings</h3>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium">Provider</label>
           <select value={settings.provider || ''} onChange={(e) => setSettings(s => ({ ...s, provider: e.target.value }))} className="border p-2 w-full">
@@ -73,7 +73,7 @@ export default function SmsSettings() {
       {settings.provider === 'twilio' && (
         <div className="mt-4">
           <h4 className="font-semibold mb-2">Twilio Credentials</h4>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium">Account SID</label>
               <input value={settings.credentials?.accountSid || ''} onChange={(e) => setSettings(s => ({ ...s, credentials: { ...(s.credentials||{}), accountSid: e.target.value } }))} className="border p-2 w-full" />
@@ -100,8 +100,8 @@ export default function SmsSettings() {
         </div>
       )}
 
-      <div className="mt-4 flex gap-2">
-        <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-black text-white rounded">{saving ? 'Saving...' : 'Save Settings'}</button>
+      <div className="mt-4 flex flex-col sm:flex-row gap-2">
+        <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-black text-white rounded w-full sm:w-auto">{saving ? 'Saving...' : 'Save Settings'}</button>
       </div>
     </div>
   )

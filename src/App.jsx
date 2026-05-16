@@ -23,8 +23,10 @@ import LoadingSpinner from './components/common/LoadingSpinner'
 import toast from 'react-hot-toast'
 import AdBanner from './components/common/AdBanner'
 
-// Axios base config
+// Axios base config (hosted backend)
 axios.defaults.baseURL = 'https://senderappbackend.onrender.com/api'
+axios.defaults.timeout = 30000
+axios.defaults.withCredentials = false
 
 // Handle expired tokens globally
 axios.interceptors.response.use(
@@ -55,10 +57,19 @@ function App() {
   const location = useLocation()
 
   useEffect(() => {
-    checkAuthStatus()
+    initializeApp()
   }, [])
 
   // additional state and effects removed (notifications, ads etc)
+
+  const initializeApp = async () => {
+    try {
+      checkAuthStatus()
+    } catch (error) {
+      console.error('Failed to initialize app:', error)
+      setLoading(false)
+    }
+  }
 
   const checkAuthStatus = async () => {
     try {
@@ -185,7 +196,7 @@ function App() {
                           element={
                             <ProtectedRoute user={user}>
                               <DashboardLayout user={user} onLogout={logout}>
-                                <EmailDashboard user={user} />
+                                <EmailDashboard />
                                 {!shouldHideAd && <AdBanner />}
                               </DashboardLayout>
                             </ProtectedRoute>
@@ -196,7 +207,7 @@ function App() {
                           element={
                             <ProtectedRoute user={user}>
                               <DashboardLayout user={user} onLogout={logout}>
-                                <SmsDashboard user={user} />
+                                <SmsDashboard />
                                 {!shouldHideAd && <AdBanner />}
                               </DashboardLayout>
                             </ProtectedRoute>

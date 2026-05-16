@@ -628,25 +628,25 @@ console.log('[EmailCompose] About to build email payload:', {
 
   return (
     <div className="bg-white p-6 rounded shadow">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
         <h2 className="text-xl font-bold">Compose Email</h2>
         <button className="text-blue-600 underline" onClick={onOpenSettings}>Settings</button>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <input
             type="text"
             name="to"
             value={form.to}
             onChange={handleChange}
-            className="border p-2 flex-1"
+            className="border p-3 w-full rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="To (comma separated)"
           />
           <textarea
             name="bcc"
             value={form.bcc}
             onChange={handleChange}
-            className="border p-2 flex-1 min-h-[48px]"
+            className="border p-3 w-full min-h-[80px] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="BCC (comma or newline separated)"
           />
         </div>
@@ -655,7 +655,7 @@ console.log('[EmailCompose] About to build email payload:', {
           name="fromName"
           value={form.fromName}
           onChange={handleChange}
-          className="border p-2 w-full"
+          className="border p-3 w-full rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           placeholder="From Name (displayed to recipient)"
         />
         <input
@@ -663,7 +663,7 @@ console.log('[EmailCompose] About to build email payload:', {
           name="fromEmail"
           value={form.fromEmail}
           onChange={handleChange}
-          className="border p-2 w-full"
+          className="border p-3 w-full rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           placeholder="From Email (default from settings)"
           required
         />
@@ -672,24 +672,24 @@ console.log('[EmailCompose] About to build email payload:', {
           name="replyTo"
           value={form.replyTo}
           onChange={handleChange}
-          className="border p-2 w-full"
+          className="border p-3 w-full rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           placeholder="Reply-To (optional)"
         />
-        <div className="flex gap-2 items-end">
-          <div className="flex-1">
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+          <div className="flex-1 w-full">
             <input
               type="text"
               name="subject"
               value={form.subject}
               onChange={handleChange}
-              className="border p-2 w-full"
+              className="border p-3 w-full rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Subject"
             />
           </div>
           <button
             type="button"
             onClick={() => openPlaceholderModal('subject')}
-            className="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 whitespace-nowrap"
+            className="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition whitespace-nowrap w-full sm:w-auto"
             title="Insert placeholder in subject"
           >
             + Placeholder
@@ -703,7 +703,7 @@ console.log('[EmailCompose] About to build email payload:', {
 
         {/* HTML Editor Section */}
         <div>
-          <div className="mb-3 flex gap-2 items-center">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="flex-1">
               <label className="block text-sm font-semibold mb-1">📧 Email as HTML</label>
               <div className="text-sm text-black bg-gray-50 p-2 rounded border border-gray-200">
@@ -713,13 +713,13 @@ console.log('[EmailCompose] About to build email payload:', {
             <button
               type="button"
               onClick={() => openPlaceholderModal('body')}
-              className="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 whitespace-nowrap h-fit"
+              className="w-full sm:w-auto px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 whitespace-nowrap h-fit"
               title="Insert placeholder in HTML body"
             >
               + Placeholder
             </button>
           </div>
-          <div className="mb-3 flex items-center gap-3 justify-between">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <input id="useHtml" type="checkbox" checked={useHtml} onChange={(e) => setUseHtml(e.target.checked)} className="h-4 w-4" />
               <label htmlFor="useHtml" className="text-sm font-semibold">Use HTML body (optional)</label>
@@ -745,7 +745,7 @@ console.log('[EmailCompose] About to build email payload:', {
           
           {/* Alignment & Spacing Controls - HIDDEN in raw HTML mode */}
           {useHtml && !useRawHtml && (
-            <div className="mb-3 p-3 bg-gray-50 rounded border border-gray-200 flex gap-4 items-end flex-wrap">
+            <div className="mb-3 p-3 bg-gray-50 rounded border border-gray-200 flex flex-col gap-4 sm:flex-row sm:items-end flex-wrap">
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-2">📍 Alignment:</label>
                 <div className="flex gap-1">
@@ -844,7 +844,7 @@ console.log('[EmailCompose] About to build email payload:', {
         <div className="border-t pt-4">
           {/* CTA Text Field */}
           <div className="mb-4 pb-4 border-b">
-            <div className="mb-3 flex gap-2 items-end">
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="flex-1">
                 <label className="block text-sm font-semibold mb-1">📝 CTA Text (Optional)</label>
                 <div className="text-sm text-purple-600 bg-purple-50 p-2 rounded border border-purple-200 mb-2">
@@ -854,7 +854,7 @@ console.log('[EmailCompose] About to build email payload:', {
               <button
                 type="button"
                 onClick={() => openPlaceholderModal('ctaText')}
-                className="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 whitespace-nowrap h-fit"
+                className="w-full sm:w-auto px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 whitespace-nowrap h-fit"
                 title="Insert placeholder in CTA text"
               >
                 + Placeholder
@@ -874,7 +874,7 @@ console.log('[EmailCompose] About to build email payload:', {
           </div>
 
           {/* CTA Link Field */}
-          <div className="mb-3 flex gap-2 items-end">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">
               <label className="block text-sm font-semibold mb-1">🔗 CTA Link (Optional)</label>
               <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded border border-blue-200 mb-2">
@@ -884,7 +884,7 @@ console.log('[EmailCompose] About to build email payload:', {
             <button
               type="button"
               onClick={() => openPlaceholderModal('ctaLink')}
-              className="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 whitespace-nowrap h-fit"
+              className="w-full sm:w-auto px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 whitespace-nowrap h-fit"
               title="Insert placeholder in CTA link"
             >
               + Placeholder
@@ -1045,7 +1045,7 @@ console.log('[EmailCompose] About to build email payload:', {
                   Example: "{detectedPlaceholders[0]}" will be replaced with the recipient's actual value.
                 </p>
               </div>
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
                   onClick={() => setShowPlaceholderConfirm(false)}

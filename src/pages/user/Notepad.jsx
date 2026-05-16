@@ -329,7 +329,7 @@ export default function Notepad({ user, isAdminMode = false }) {
       {passwordCheckDone && (!hasNotepadPassword || passwordUnlocked) && (
         <>
           {/* Header */}
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Notepad</h1>
               <p className="text-gray-600 mt-1">
@@ -338,14 +338,14 @@ export default function Notepad({ user, isAdminMode = false }) {
                   : 'View and create notes'}
               </p>
             </div>
-            <button onClick={handleCreateNote} className="btn-primary flex items-center gap-2">
+            <button onClick={handleCreateNote} className="btn-primary w-full sm:w-auto flex items-center justify-center gap-2">
               <FiPlus className="w-5 h-5" /> New Note
             </button>
           </div>
 
           {/* Controls */}
-          <div className="flex gap-4 flex-wrap">
-            <div className="flex-1 min-w-64 relative">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="flex-1 min-w-0 relative">
               <FiSearch className="absolute left-3 top-3 text-gray-400 w-5 h-5" />
               <input
                 type="text"
@@ -418,7 +418,7 @@ export default function Notepad({ user, isAdminMode = false }) {
                   </p>
 
                   {/* Action buttons: Send always available; Edit/Archive/Delete for owner or admin */}
-                  <div className="flex gap-2 mt-4 pt-3 border-t border-current">
+                  <div className="flex flex-col gap-2 mt-4 pt-3 border-t border-current sm:flex-row">
                     <button
                       onClick={(e) => { e.stopPropagation(); handleSendNote(note) }}
                       disabled={sendingNoteId === note._id}

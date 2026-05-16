@@ -260,7 +260,7 @@ export default function NoteEditor({ note, isNew, onSave, onClose, isAdmin, user
                   {uploadedImages.length > 0 && (
                     <div className="mb-4">
                       <p className="text-xs font-medium text-gray-600 mb-2">📸 Images ({uploadedImages.length})</p>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                         {uploadedImages.map((img) => (
                           <div key={img.publicId} className="relative group">
                             <img 
@@ -356,13 +356,13 @@ export default function NoteEditor({ note, isNew, onSave, onClose, isAdmin, user
           )}
         </div>
 
-        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
-          <button onClick={onClose} className="btn-secondary">Cancel</button>
+        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <button onClick={onClose} className="btn-secondary w-full sm:w-auto">Cancel</button>
           {canEdit && (
             <button
               onClick={handleSave}
               disabled={saving}
-              className="btn-primary flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              className="btn-primary w-full sm:w-auto flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <>

@@ -1,30 +1,24 @@
 {
   "name": "inbox-guaranteed",
   "version": "1.0.0",
+  "description": "Inbox Guaranteed - Email and SMS sending application",
+  "author": "Your Name",
   "private": true,
   "type": "module",
-
-  "main": "electron/main.cjs",
+  
   "homepage": "./",
   "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "dev": "vite",
+    "dev:services": "concurrently \"cd ../senderbackend && npm start\" \"npm run dev\"",
     "client": "vite",
-    "server": "cd backend && node server.js",
+    "server": "cd ../senderbackend && node server.cjs",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest",
     "test:watch": "vitest --watch",
     
-
-    "electron": "npm run build && electron .",
-    "electron-dev": "concurrently \"npm run build\" \"wait-on dist/index.html && electron .\"",
-    "electron-build": "npm run build && electron-builder",
-    "electron-build-win": "npm run build && electron-builder --win",
-    "electron-build-mac": "npm run build && electron-builder --mac",
-    "electron-build-linux": "npm run build && electron-builder --linux"
   },
-
   "dependencies": {
     "axios": "^1.10.0",
     "date-fns": "^2.30.0",
@@ -42,7 +36,6 @@
     "react-router-dom": "^6.30.1",
     "socket.io-client": "^4.7.4"
   },
-
   "devDependencies": {
     "@eslint/js": "^9.9.1",
     "@testing-library/jest-dom": "^6.0.0",
@@ -52,6 +45,8 @@
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.16",
     "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    
     "eslint": "^9.9.1",
     "eslint-plugin-react": "^7.35.0",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
@@ -62,31 +57,7 @@
     "tailwindcss": "^3.3.6",
     "vite": "^5.4.2",
     "vitest": "^1.0.0",
-
-    "electron": "^27.0.0",
-    "electron-builder": "^24.6.4",
-    "electron-is-dev": "^2.0.0",
     "wait-on": "^7.0.1"
   },
-  "build": {
-    "appId": "com.senderapp.desktop",
-    "productName": "SenderApp",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "package.json"
-    ],
-    "win": {
-      "target": "nsis"
-    },
-    "mac": {
-      "target": "dmg"
-    },
-    "linux": {
-      "target": ["AppImage", "deb"]
-    }
-  }
+  
 }

@@ -138,9 +138,9 @@ export default function EmailSettings({ onSave, onCancel, initialSettings }) {
 
         {form.provider === 'smtp' && (
           <div>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
               <h3 className="text-lg font-semibold">SMTP Configurations</h3>
-              <button type="button" onClick={addSmtpConfig} className="bg-blue-500 text-white px-3 py-1 rounded text-sm">
+              <button type="button" onClick={addSmtpConfig} className="bg-blue-500 text-white px-3 py-2 rounded-lg text-sm w-full sm:w-auto">
                 Add SMTP
               </button>
             </div>
@@ -165,7 +165,7 @@ export default function EmailSettings({ onSave, onCancel, initialSettings }) {
                       </button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <input
                       type="text"
                       placeholder="Name"
@@ -287,17 +287,17 @@ export default function EmailSettings({ onSave, onCancel, initialSettings }) {
         {error && <div className="text-red-600">{error}</div>}
         {success && <div className="text-green-600">{success}</div>}
 
-        <div className="flex gap-3">
-          <button type="button" onClick={() => navigate('/user/email-compose')} className="bg-gray-500 text-white px-4 py-2 rounded">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <button type="button" onClick={() => navigate('/user/email-compose')} className="w-full sm:w-auto bg-gray-500 text-white px-4 py-2 rounded">
             Back to Compose
           </button>
-          <button type="submit" disabled={saving} className="bg-black text-white px-4 py-2 rounded">
+          <button type="submit" disabled={saving} className="w-full sm:w-auto bg-black text-white px-4 py-2 rounded">
             {saving ? 'Saving...' : 'Save Settings'}
           </button>
-          <button type="button" onClick={handleTestConnection} disabled={testing} className="border px-4 py-2 rounded">
+          <button type="button" onClick={handleTestConnection} disabled={testing} className="w-full sm:w-auto border px-4 py-2 rounded">
             {testing ? 'Testing...' : 'Test Connection'}
           </button>
-          <button type="button" onClick={onCancel} className="border px-4 py-2 rounded">
+          <button type="button" onClick={onCancel} className="w-full sm:w-auto border px-4 py-2 rounded">
             Cancel
           </button>
         </div>
