@@ -81,6 +81,9 @@ export default function EmailDashboard({ user }) {
   const [emailTotal, setEmailTotal] = useState(0);
   const [emailTotalPages, setEmailTotalPages] = useState(0);
   const activeSessionIdRef = useRef(null);
+  const activeLogTabRef = useRef(activeLogTab);
+  const emailPageRef = useRef(emailPage);
+  const emailLimitRef = useRef(emailLimit);
   const socketRef = useRef(null);
   const hasLiveSocket = useRef(false);
 
@@ -133,34 +136,58 @@ export default function EmailDashboard({ user }) {
 
       const { total, successful, failed, pending, status, lastEmail, lastResult, lastError, timestamp } = payload;
       const formattedStatus = lastResult === 'sent' ? 'Success' : lastResult === 'failed' ? 'Failed' : 'Pending';
+      const effectiveTimestamp = timestamp || new Date().toISOString();
 
-      setSendProgress({ total, successful, failed, pending, status, lastEmail, lastResult, lastError, timestamp });
+      setSendProgress({ total, successful, failed, pending, status, lastEmail, lastResult, lastError, timestamp: effectiveTimestamp });
 
       if (lastEmail) {
         const event = {
           email: lastEmail,
           status: lastResult || 'processing',
           error: lastError || null,
-          timestamp: timestamp || new Date().toISOString(),
+          timestamp: effectiveTimestamp,
         };
-        setSendEvents((prev) => [event, ...prev].slice(0, 100));
+        setSendEvents((prev) => [event, ...prev].slice(0, 200));
       }
 
-      if (lastEmail && activeLogTab === 'email' && emailPage === 1) {
+      if (lastEmail && activeLogTabRef.current === 'email' && emailPageRef.current === 1) {
+        let addedRecord = false;
         setLogs((prev) => {
-          const newRecord = {
+          const existingIndex = prev.findIndex((record) => {
+            const recordTo = Array.isArray(record.to) ? record.to : [record.to];
+            return recordTo.some((email) => email === lastEmail);
+          });
+
+          const liveRecord = {
             to: [lastEmail],
             bcc: [],
             subject: `(live email activity) ${lastResult || 'processing'}`,
-            sentAt: timestamp || new Date().toISOString(),
+            sentAt: effectiveTimestamp,
             smtpUsed: 'live',
             status: formattedStatus,
             error: lastError || '',
           };
-          const exists = prev.some((record) => record.to?.join(',') === lastEmail && new Date(record.sentAt).getTime() === new Date(newRecord.sentAt).getTime());
-          if (exists) return prev;
-          return [newRecord, ...prev].slice(0, emailLimit);
+
+          if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex] = {
+              ...updated[existingIndex],
+              ...liveRecord,
+            };
+            return updated;
+          }
+
+          addedRecord = true;
+          return [liveRecord, ...prev].slice(0, emailLimitRef.current);
         });
+
+        if (addedRecord) {
+          setEmailTotal((currentTotal) => {
+            const nextTotal = currentTotal + 1;
+            setEmailTotalPages(Math.ceil(nextTotal / emailLimitRef.current));
+            return nextTotal;
+          });
+        }
       }
 
       if (status === 'completed') {
@@ -186,6 +213,18 @@ export default function EmailDashboard({ user }) {
       setSocketConnected(false);
     };
   }, [user]);
+
+  useEffect(() => {
+    activeLogTabRef.current = activeLogTab;
+  }, [activeLogTab]);
+
+  useEffect(() => {
+    emailPageRef.current = emailPage;
+  }, [emailPage]);
+
+  useEffect(() => {
+    emailLimitRef.current = emailLimit;
+  }, [emailLimit]);
 
   useEffect(() => {
     if (activeLogTab === 'smtp') {
@@ -221,11 +260,20 @@ export default function EmailDashboard({ user }) {
           toDate: emailToDate,
         },
       });
-      setLogs(res.data.logs || []);
-      setEmailTotal(res.data.pagination?.total || 0);
-      setEmailTotalPages(res.data.pagination?.totalPages || 0);
-      if (res.data.pagination?.page) {
+      const newLogs = res.data.logs || [];
+      const total = res.data.pagination?.total || 0;
+      const totalPages = res.data.pagination?.totalPages || Math.ceil(total / emailLimit);
+
+      setLogs(newLogs);
+      setEmailTotal(total);
+      setEmailTotalPages(totalPages);
+
+      if (res.data.pagination?.page && res.data.pagination.page !== emailPage) {
         setEmailPage(res.data.pagination.page);
+      }
+
+      if (totalPages > 0 && emailPage > totalPages) {
+        setEmailPage(totalPages);
       }
     } catch (err) {
       console.error('[EmailDashboard] Failed to load email logs', err);
@@ -244,6 +292,7 @@ export default function EmailDashboard({ user }) {
 
   const handleSend = async (emailData) => {
     const sessionId = emailData.sendSessionId || `send-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    setLogTab('email');
     setActiveSessionId(sessionId);
     activeSessionIdRef.current = sessionId;
     setLiveSendInProgress(true);
@@ -455,6 +504,7 @@ export default function EmailDashboard({ user }) {
 
   const setLogTab = (tab) => {
     setActiveLogTab(tab);
+    setEmailPage(1);
   };
 
   return (
@@ -522,7 +572,7 @@ export default function EmailDashboard({ user }) {
                 {sendEvents.length === 0 ? (
                   <div className="text-sm text-gray-500">No live activity yet.</div>
                 ) : (
-                  sendEvents.slice().reverse().map((event, idx) => (
+                  sendEvents.map((event, idx) => (
                     <div key={idx} className="rounded-lg border border-gray-200 bg-white p-3">
                       <div className="flex items-center justify-between text-sm text-gray-700">
                         <span className="font-medium">{event.email}</span>
